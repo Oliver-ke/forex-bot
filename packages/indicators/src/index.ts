@@ -5,3 +5,4 @@ export * from "./rsi.js";
 export * from "./atr.js";
 export * from "./adx.js";
 export * from "./bollinger.js";
+export * from "./swings.js";

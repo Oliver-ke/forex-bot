@@ -60,4 +60,37 @@ describe("correlation", () => {
     });
     expect(Math.abs(risk)).toBeCloseTo(0, 6);
   });
+
+  it("same-symbol correlation is 1; missing pair is 0", () => {
+    expect(M.corr("EURUSD", "EURUSD")).toBe(1);
+    // pair not present in matrix data
+    expect(M.corr("USDCHF", "AUDUSD")).toBe(0);
+  });
+
+  it("sell-side new trade flips the sign correctly", () => {
+    const risk = netCorrelatedRiskPct({
+      matrix: M,
+      newSymbol: "EURUSD",
+      newSide: "sell",
+      newRiskPct: 1,
+      openPositions: [pos("GBPUSD", "buy", 0.1)],
+      positionRiskPct: () => 1,
+      threshold: 0.6,
+    });
+    // new short EURUSD (-1) + GBPUSD long with corr 0.8 (+1) → net = -1 + 1 = 0
+    expect(risk).toBeCloseTo(0, 6);
+  });
+
+  it("ignores positions below threshold", () => {
+    const risk = netCorrelatedRiskPct({
+      matrix: M,
+      newSymbol: "EURUSD",
+      newSide: "buy",
+      newRiskPct: 1,
+      openPositions: [pos("GBPUSD", "buy", 0.1)],
+      positionRiskPct: () => 1,
+      threshold: 0.95, // 0.8 < 0.95 → ignored
+    });
+    expect(risk).toBe(1);
+  });
 });

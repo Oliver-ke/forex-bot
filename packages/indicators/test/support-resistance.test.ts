@@ -15,4 +15,9 @@ describe("support-resistance clusterLevels", () => {
   it("empty input → empty output", () => {
     expect(clusterLevels([], 0.001)).toEqual([]);
   });
+
+  it("throws on non-positive tolerance", () => {
+    expect(() => clusterLevels([1, 2], 0)).toThrow();
+    expect(() => clusterLevels([1, 2], -1)).toThrow();
+  });
 });

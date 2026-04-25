@@ -16,6 +16,24 @@ describe("KillSwitch", () => {
     expect(ks.state().reason).toContain("daily");
   });
 
+  it("trips on total drawdown exceeded", () => {
+    const ks = new KillSwitch();
+    ks.observe({ dailyPnlPct: 0, totalDdPct: -10, consecutiveLosses: 0, lastFeedAgeSec: 1 }, {
+      maxDailyLossPct: 3, maxTotalDrawdownPct: 8, maxConsecutiveLosses: 4, feedStaleSec: 30,
+    });
+    expect(ks.state().tripped).toBe(true);
+    expect(ks.state().reason).toContain("drawdown");
+  });
+
+  it("trips on consecutive losses exceeded", () => {
+    const ks = new KillSwitch();
+    ks.observe({ dailyPnlPct: 0, totalDdPct: 0, consecutiveLosses: 5, lastFeedAgeSec: 1 }, {
+      maxDailyLossPct: 3, maxTotalDrawdownPct: 8, maxConsecutiveLosses: 4, feedStaleSec: 30,
+    });
+    expect(ks.state().tripped).toBe(true);
+    expect(ks.state().reason).toContain("consecutive");
+  });
+
   it("trips on stale feed", () => {
     const ks = new KillSwitch();
     ks.observe({ dailyPnlPct: 0, totalDdPct: 0, consecutiveLosses: 0, lastFeedAgeSec: 60 }, {

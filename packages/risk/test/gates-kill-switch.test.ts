@@ -17,4 +17,11 @@ describe("killSwitchGate", () => {
     expect(r.pass).toBe(false);
     expect(r.reason).toContain("kill-switch");
   });
+
+  it("falls back to 'unknown' when tripped without reason", () => {
+    const ks = new KillSwitch({ tripped: true });
+    const r = killSwitchGate(mkGateCtx({ killSwitch: ks }));
+    expect(r.pass).toBe(false);
+    expect(r.reason).toContain("unknown");
+  });
 });

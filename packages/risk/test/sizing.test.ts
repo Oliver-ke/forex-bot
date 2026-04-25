@@ -50,4 +50,10 @@ describe("computeLotSize", () => {
       computeLotSize({ equity: 10000, riskPct: 1, stopDistancePips: 0, pipValuePerLot: 10, maxLotSize: 2 }),
     ).toBe(0);
   });
+
+  it("returns 0 if pipValuePerLot is 0 (refuse unsafe entry)", () => {
+    expect(
+      computeLotSize({ equity: 10000, riskPct: 1, stopDistancePips: 50, pipValuePerLot: 0, maxLotSize: 2 }),
+    ).toBe(0);
+  });
 });

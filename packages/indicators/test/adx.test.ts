@@ -13,6 +13,10 @@ describe("adx", () => {
     expect(out.every((v) => v === undefined)).toBe(true);
   });
 
+  it("throws on invalid period", () => {
+    expect(() => adx([], 0)).toThrow();
+  });
+
   it("strong monotonic uptrend produces high ADX (>50) after warmup", () => {
     const cs = Array.from({ length: 60 }, (_, i) => mk(1 + i * 0.01 + 0.005, 1 + i * 0.01, 1 + i * 0.01 + 0.004, i));
     const out = adx(cs, 14);

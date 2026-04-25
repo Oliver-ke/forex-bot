@@ -13,6 +13,10 @@ describe("atr (Wilder)", () => {
     expect(out.every((v) => v === undefined)).toBe(true);
   });
 
+  it("throws on invalid period", () => {
+    expect(() => atr([], 0)).toThrow();
+  });
+
   it("constant-range series has ATR equal to that range", () => {
     const cs = Array.from({ length: 20 }, (_, i) => mk(2, 1, 1.5, i));
     const out = atr(cs, 14);

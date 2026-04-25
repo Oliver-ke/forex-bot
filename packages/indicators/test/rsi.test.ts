@@ -17,4 +17,19 @@ describe("rsi (Wilder)", () => {
     const out = rsi([1, 2, 3], 14);
     expect(out.every((v) => v === undefined)).toBe(true);
   });
+
+  it("smoothing loop produces values in (0, 100) for mixed series", () => {
+    // Period 5 with 12 values forces the post-seed smoothing loop to run.
+    const out = rsi([1, 2, 3, 4, 5, 4, 6, 5, 7, 6, 8, 7], 5);
+    for (let i = 5; i < out.length; i++) {
+      const v = out[i];
+      expect(typeof v).toBe("number");
+      expect(v as number).toBeGreaterThan(0);
+      expect(v as number).toBeLessThan(100);
+    }
+  });
+
+  it("throws on invalid period", () => {
+    expect(() => rsi([1, 2, 3], 0)).toThrow();
+  });
 });

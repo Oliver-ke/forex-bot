@@ -43,6 +43,19 @@ describe("account types", () => {
     expect(() => PositionSchema.parse({ ...base, sl: 1.09, tp: 1.07 })).toThrow();
   });
 
+  it("Position sell side: SL above entry, TP below entry", () => {
+    const sellBase = {
+      id: "p-2",
+      symbol: "EURUSD",
+      side: "sell",
+      lotSize: 0.5,
+      entry: 1.08,
+      openedAt: 1,
+    } as const;
+    expect(PositionSchema.parse({ ...sellBase, sl: 1.09, tp: 1.07 }).side).toBe("sell");
+    expect(() => PositionSchema.parse({ ...sellBase, sl: 1.07, tp: 1.09 })).toThrow();
+  });
+
   it("PendingOrder requires expiry >= now", () => {
     expect(() =>
       PendingOrderSchema.parse({

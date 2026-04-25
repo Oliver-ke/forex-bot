@@ -36,4 +36,15 @@ describe("perTradeRiskGate", () => {
     );
     expect(r.pass).toBe(true);
   });
+
+  it("uses JPY pip scale (0.01) for JPY pairs", () => {
+    const r = perTradeRiskGate(
+      mkGateCtx({
+        atrPips: 10,
+        // JPY pair: pipScale=0.01. entry=150.00, sl=149.50 → 50 pips. tp=150.75 → 75 pips. RR=1.5
+        order: { ...mkGateCtx().order, symbol: "USDJPY", entry: 150.0, sl: 149.5, tp: 150.75 },
+      }),
+    );
+    expect(r.pass).toBe(true);
+  });
 });

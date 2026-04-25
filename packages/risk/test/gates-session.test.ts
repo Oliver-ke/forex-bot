@@ -22,4 +22,14 @@ describe("sessionGate", () => {
     const r = sessionGate(mkGateCtx({ session: "off" }));
     expect(r.pass).toBe(false);
   });
+
+  it("allows during NY session (allowed=all)", () => {
+    const r = sessionGate(mkGateCtx({ session: "ny" }));
+    expect(r.pass).toBe(true);
+  });
+
+  it("treats overlap_ny_london as all-allowed", () => {
+    const r = sessionGate(mkGateCtx({ session: "overlap_ny_london" }));
+    expect(r.pass).toBe(true);
+  });
 });

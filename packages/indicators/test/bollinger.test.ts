@@ -10,6 +10,11 @@ describe("bollinger", () => {
     expect(last?.lower).toBe(5);
   });
 
+  it("throws on invalid period", () => {
+    expect(() => bollinger([1, 2, 3], 0)).toThrow();
+    expect(() => bollinger([1, 2, 3], 5)).toThrow();
+  });
+
   it("upper - lower = 2 * k * stddev", () => {
     const out = bollinger([1, 2, 3, 4, 5], 5, 2);
     const last = out[out.length - 1];

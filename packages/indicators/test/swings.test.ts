@@ -22,6 +22,10 @@ describe("swings", () => {
     expect(out.lows).toContain(4);
   });
 
+  it("throws on invalid lookback", () => {
+    expect(() => swings([], 0)).toThrow();
+  });
+
   it("ignores boundary candles within lookback", () => {
     const cs = [mk(2, 1, 0), mk(1, 0.5, 1), mk(1, 0.5, 2), mk(1, 0.5, 3), mk(2, 1, 4)];
     const out = swings(cs, 2);

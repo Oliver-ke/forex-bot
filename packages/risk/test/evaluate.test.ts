@@ -13,10 +13,12 @@ describe("evaluate (9-gate chain)", () => {
   });
 
   it("approves when all 9 gates pass", () => {
-    const r = evaluate(mkGateCtx({
-      atrPips: 10,
-      order: { ...mkGateCtx().order, entry: 1.08, sl: 1.075, tp: 1.0875 },
-    }));
+    const r = evaluate(
+      mkGateCtx({
+        atrPips: 10,
+        order: { ...mkGateCtx().order, entry: 1.08, sl: 1.075, tp: 1.0875 },
+      }),
+    );
     expect(r.approve).toBe(true);
     if (r.approve) {
       expect(r.lotSize).toBeGreaterThan(0);

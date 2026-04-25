@@ -22,7 +22,8 @@ export interface NetRiskInput {
 }
 
 export function netCorrelatedRiskPct(input: NetRiskInput): number {
-  const { matrix, newSymbol, newSide, newRiskPct, openPositions, positionRiskPct, threshold } = input;
+  const { matrix, newSymbol, newSide, newRiskPct, openPositions, positionRiskPct, threshold } =
+    input;
   const newSign = newSide === "buy" ? 1 : -1;
   let net = newSign * newRiskPct;
   for (const p of openPositions) {

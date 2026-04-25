@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  RiskConfigSchema,
-  RiskDecisionSchema,
-  defaultRiskConfig,
-} from "../src/risk-config.js";
+import { RiskConfigSchema, RiskDecisionSchema, defaultRiskConfig } from "../src/risk-config.js";
 
 describe("risk-config", () => {
   it("parses the default config", () => {
@@ -22,9 +18,7 @@ describe("risk-config", () => {
   });
 
   it("RiskDecision requires vetoReason when approve=false", () => {
-    expect(() =>
-      RiskDecisionSchema.parse({ approve: false }),
-    ).toThrow();
+    expect(() => RiskDecisionSchema.parse({ approve: false })).toThrow();
     const d = RiskDecisionSchema.parse({ approve: false, vetoReason: "spread too wide" });
     expect(d.approve).toBe(false);
   });

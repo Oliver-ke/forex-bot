@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  AccountStateSchema,
-  PositionSchema,
-  PendingOrderSchema,
-} from "../src/account.js";
+import { AccountStateSchema, PendingOrderSchema, PositionSchema } from "../src/account.js";
 
 describe("account types", () => {
   it("AccountState requires equity > 0 and balance >= 0", () => {

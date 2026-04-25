@@ -1,6 +1,6 @@
 import { z } from "zod";
+import { AnalystOutputSchema, VerdictSchema } from "./analysis.js";
 import { SymbolSchema } from "./primitives.js";
-import { VerdictSchema, AnalystOutputSchema } from "./analysis.js";
 import { RiskDecisionSchema } from "./risk-config.js";
 
 export const TradeOutcomeSchema = z.object({

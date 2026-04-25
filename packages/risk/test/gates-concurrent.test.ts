@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import type { Position } from "@forex-bot/contracts";
+import { describe, expect, it } from "vitest";
 import { concurrentPositionsGate } from "../src/gates/concurrent.js";
 import { mkGateCtx } from "./helpers/ctx.js";
 

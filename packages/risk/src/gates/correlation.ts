@@ -1,5 +1,5 @@
-import type { Gate } from "./types.js";
 import { netCorrelatedRiskPct } from "../correlation.js";
+import type { Gate } from "./types.js";
 
 export const correlationGate: Gate = (ctx) => {
   const net = netCorrelatedRiskPct({

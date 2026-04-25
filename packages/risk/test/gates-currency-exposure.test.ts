@@ -15,9 +15,7 @@ describe("currencyExposureGate", () => {
   });
 
   it("passes when exposures stay under cap", () => {
-    const r = currencyExposureGate(
-      mkGateCtx({ currencyExposurePct: { USD: 2, EUR: 1 } }),
-    );
+    const r = currencyExposureGate(mkGateCtx({ currencyExposurePct: { USD: 2, EUR: 1 } }));
     expect(r.pass).toBe(true);
   });
 });

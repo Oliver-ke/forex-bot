@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import type { Candle } from "@forex-bot/contracts";
+import { describe, expect, it } from "vitest";
 import { adx } from "../src/adx.js";
 
 function mk(h: number, l: number, c: number, idx = 0): Candle {
@@ -18,7 +18,9 @@ describe("adx", () => {
   });
 
   it("strong monotonic uptrend produces high ADX (>50) after warmup", () => {
-    const cs = Array.from({ length: 60 }, (_, i) => mk(1 + i * 0.01 + 0.005, 1 + i * 0.01, 1 + i * 0.01 + 0.004, i));
+    const cs = Array.from({ length: 60 }, (_, i) =>
+      mk(1 + i * 0.01 + 0.005, 1 + i * 0.01, 1 + i * 0.01 + 0.004, i),
+    );
     const out = adx(cs, 14);
     const last = out[out.length - 1];
     expect(typeof last).toBe("number");

@@ -10,9 +10,7 @@ describe("newsBlackoutGate", () => {
       mkGateCtx({
         now: NOW,
         order: { ...mkGateCtx().order, symbol: "EURUSD" },
-        upcomingEvents: [
-          { ts: NOW + 5 * 60_000, currency: "USD", impact: "high", title: "CPI" },
-        ],
+        upcomingEvents: [{ ts: NOW + 5 * 60_000, currency: "USD", impact: "high", title: "CPI" }],
       }),
     );
     expect(r.pass).toBe(false);
@@ -22,9 +20,7 @@ describe("newsBlackoutGate", () => {
     const r = newsBlackoutGate(
       mkGateCtx({
         now: NOW,
-        upcomingEvents: [
-          { ts: NOW + 60 * 60_000, currency: "USD", impact: "high", title: "CPI" },
-        ],
+        upcomingEvents: [{ ts: NOW + 60 * 60_000, currency: "USD", impact: "high", title: "CPI" }],
       }),
     );
     expect(r.pass).toBe(true);
@@ -34,9 +30,7 @@ describe("newsBlackoutGate", () => {
     const r = newsBlackoutGate(
       mkGateCtx({
         now: NOW,
-        upcomingEvents: [
-          { ts: NOW + 2 * 60_000, currency: "USD", impact: "low", title: "x" },
-        ],
+        upcomingEvents: [{ ts: NOW + 2 * 60_000, currency: "USD", impact: "low", title: "x" }],
       }),
     );
     expect(r.pass).toBe(true);
@@ -47,9 +41,7 @@ describe("newsBlackoutGate", () => {
       mkGateCtx({
         now: NOW,
         order: { ...mkGateCtx().order, symbol: "EURUSD" },
-        upcomingEvents: [
-          { ts: NOW + 2 * 60_000, currency: "JPY", impact: "high", title: "x" },
-        ],
+        upcomingEvents: [{ ts: NOW + 2 * 60_000, currency: "JPY", impact: "high", title: "x" }],
       }),
     );
     expect(r.pass).toBe(true);

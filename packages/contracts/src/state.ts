@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { SymbolSchema, TimeframeSchema } from "./primitives.js";
-import { MTFBundleSchema } from "./market.js";
 import { AccountStateSchema, PositionSchema } from "./account.js";
 import { RegimeSchema } from "./analysis.js";
+import { MTFBundleSchema } from "./market.js";
+import { SymbolSchema, TimeframeSchema } from "./primitives.js";
 
 export const NewsHeadlineSchema = z.object({
   ts: z.number().int().nonnegative(),

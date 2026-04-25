@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  AnalystOutputSchema,
-  RegimeSchema,
-  VerdictSchema,
-} from "../src/analysis.js";
+import { AnalystOutputSchema, RegimeSchema, VerdictSchema } from "../src/analysis.js";
 
 describe("analysis types", () => {
   it("Regime requires known label + vol bucket", () => {
@@ -39,6 +35,8 @@ describe("analysis types", () => {
       reasoning: "confluence",
     });
     expect(v.direction).toBe("long");
-    expect(() => VerdictSchema.parse({ direction: "neutral", confidence: 0.8, horizon: "H4", reasoning: "x" })).not.toThrow();
+    expect(() =>
+      VerdictSchema.parse({ direction: "neutral", confidence: 0.8, horizon: "H4", reasoning: "x" }),
+    ).not.toThrow();
   });
 });

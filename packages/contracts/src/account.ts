@@ -1,5 +1,11 @@
 import { z } from "zod";
-import { CurrencySchema, LotSizeSchema, PriceSchema, SideSchema, SymbolSchema } from "./primitives.js";
+import {
+  CurrencySchema,
+  LotSizeSchema,
+  PriceSchema,
+  SideSchema,
+  SymbolSchema,
+} from "./primitives.js";
 
 export const AccountStateSchema = z.object({
   ts: z.number().int().nonnegative(),

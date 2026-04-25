@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { StateBundleSchema } from "../src/state.js";
 import { TradeJournalSchema } from "../src/journal.js";
+import { StateBundleSchema } from "../src/state.js";
 
 describe("journal + state bundle", () => {
   it("TradeJournal round-trips with minimal fields", () => {
@@ -29,8 +29,13 @@ describe("journal + state bundle", () => {
       trigger: { reason: "schedule", timeframe: "H1" },
       market: { symbol: "EURUSD", M15: [c], H1: [c], H4: [c], D1: [c] },
       account: {
-        ts: 1, currency: "USD", balance: 10000, equity: 10000, freeMargin: 10000,
-        usedMargin: 0, marginLevelPct: 10000,
+        ts: 1,
+        currency: "USD",
+        balance: 10000,
+        equity: 10000,
+        freeMargin: 10000,
+        usedMargin: 0,
+        marginLevelPct: 10000,
       },
       openPositions: [],
       recentNews: [],

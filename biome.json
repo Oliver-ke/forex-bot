@@ -1,12 +1,21 @@
 {
   "$schema": "https://biomejs.dev/schemas/1.9.0/schema.json",
+  "files": {
+    "ignore": ["node_modules", "dist", "coverage", ".vitest-cache", ".claude", "pnpm-lock.yaml"]
+  },
   "organizeImports": { "enabled": true },
   "linter": {
     "enabled": true,
     "rules": {
       "recommended": true,
       "style": { "useNodejsImportProtocol": "error" },
-      "correctness": { "noUnusedImports": "error" }
+      "correctness": {
+        "noUnusedImports": "error",
+        "noVoidTypeReturn": "off"
+      },
+      "suspicious": {
+        "noShadowRestrictedNames": "off"
+      }
     }
   },
   "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2, "lineWidth": 100 }

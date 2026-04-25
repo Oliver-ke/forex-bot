@@ -4,17 +4,23 @@ import { mkGateCtx } from "./helpers/ctx.js";
 
 describe("sessionGate", () => {
   it("blocks EURUSD during Asia (allowed is a restricted list)", () => {
-    const r = sessionGate(mkGateCtx({ session: "asia", order: { ...mkGateCtx().order, symbol: "EURUSD" } }));
+    const r = sessionGate(
+      mkGateCtx({ session: "asia", order: { ...mkGateCtx().order, symbol: "EURUSD" } }),
+    );
     expect(r.pass).toBe(false);
   });
 
   it("allows USDJPY during Asia", () => {
-    const r = sessionGate(mkGateCtx({ session: "asia", order: { ...mkGateCtx().order, symbol: "USDJPY" } }));
+    const r = sessionGate(
+      mkGateCtx({ session: "asia", order: { ...mkGateCtx().order, symbol: "USDJPY" } }),
+    );
     expect(r.pass).toBe(true);
   });
 
   it("allows any symbol during London (allowed=all)", () => {
-    const r = sessionGate(mkGateCtx({ session: "london", order: { ...mkGateCtx().order, symbol: "EURUSD" } }));
+    const r = sessionGate(
+      mkGateCtx({ session: "london", order: { ...mkGateCtx().order, symbol: "EURUSD" } }),
+    );
     expect(r.pass).toBe(true);
   });
 

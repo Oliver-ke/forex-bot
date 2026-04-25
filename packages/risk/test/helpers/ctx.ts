@@ -1,7 +1,7 @@
+import { defaultRiskConfig } from "@forex-bot/contracts";
+import { CorrelationMatrix } from "../../src/correlation.js";
 import type { GateContext } from "../../src/gates/types.js";
 import { KillSwitch } from "../../src/kill-switch.js";
-import { CorrelationMatrix } from "../../src/correlation.js";
-import { defaultRiskConfig } from "@forex-bot/contracts";
 
 export function mkGateCtx(overrides: Partial<GateContext> = {}): GateContext {
   const base: GateContext = {

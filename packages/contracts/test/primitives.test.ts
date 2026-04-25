@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   CurrencySchema,
+  LotSizeSchema,
   PipsSchema,
   PriceSchema,
   SymbolSchema,
-  LotSizeSchema,
 } from "../src/primitives.js";
 
 describe("primitives", () => {

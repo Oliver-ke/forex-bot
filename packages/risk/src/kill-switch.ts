@@ -36,8 +36,10 @@ export class KillSwitch {
   observe(obs: KillSwitchObservation, t: KillSwitchThresholds, now = Date.now()): void {
     if (this.s.tripped) return;
     if (obs.dailyPnlPct <= -t.maxDailyLossPct) return this.trip("daily loss cap exceeded", now);
-    if (obs.totalDdPct <= -t.maxTotalDrawdownPct) return this.trip("total drawdown cap exceeded", now);
-    if (obs.consecutiveLosses >= t.maxConsecutiveLosses) return this.trip("consecutive losses exceeded", now);
+    if (obs.totalDdPct <= -t.maxTotalDrawdownPct)
+      return this.trip("total drawdown cap exceeded", now);
+    if (obs.consecutiveLosses >= t.maxConsecutiveLosses)
+      return this.trip("consecutive losses exceeded", now);
     if (obs.lastFeedAgeSec >= t.feedStaleSec) return this.trip("feed stale", now);
   }
 

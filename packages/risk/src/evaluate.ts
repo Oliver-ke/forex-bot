@@ -1,15 +1,15 @@
 import type { RiskDecision } from "@forex-bot/contracts";
-import { computeLotSize } from "./sizing.js";
-import type { Gate, GateContext } from "./gates/types.js";
-import { killSwitchGate } from "./gates/kill-switch.js";
-import { spreadGate } from "./gates/spread.js";
-import { sessionGate } from "./gates/session.js";
-import { newsBlackoutGate } from "./gates/news-blackout.js";
+import { concurrentPositionsGate } from "./gates/concurrent.js";
 import { correlationGate } from "./gates/correlation.js";
 import { currencyExposureGate } from "./gates/currency-exposure.js";
-import { concurrentPositionsGate } from "./gates/concurrent.js";
-import { perTradeRiskGate } from "./gates/per-trade-risk.js";
+import { killSwitchGate } from "./gates/kill-switch.js";
 import { marginGate } from "./gates/margin.js";
+import { newsBlackoutGate } from "./gates/news-blackout.js";
+import { perTradeRiskGate } from "./gates/per-trade-risk.js";
+import { sessionGate } from "./gates/session.js";
+import { spreadGate } from "./gates/spread.js";
+import type { Gate, GateContext } from "./gates/types.js";
+import { computeLotSize } from "./sizing.js";
 
 export const gates: readonly Gate[] = [
   killSwitchGate,

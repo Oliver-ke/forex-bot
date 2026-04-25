@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import type { Position } from "@forex-bot/contracts";
+import { describe, expect, it } from "vitest";
 import { CorrelationMatrix, netCorrelatedRiskPct } from "../src/correlation.js";
 
 const M = new CorrelationMatrix({

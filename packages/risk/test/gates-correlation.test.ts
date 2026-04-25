@@ -1,7 +1,7 @@
+import { type Position, defaultRiskConfig } from "@forex-bot/contracts";
 import { describe, expect, it } from "vitest";
-import { defaultRiskConfig, type Position } from "@forex-bot/contracts";
-import { correlationGate } from "../src/gates/correlation.js";
 import { CorrelationMatrix } from "../src/correlation.js";
+import { correlationGate } from "../src/gates/correlation.js";
 import { mkGateCtx } from "./helpers/ctx.js";
 
 const mat = new CorrelationMatrix({ EURUSD: { GBPUSD: 0.9 }, GBPUSD: { EURUSD: 0.9 } });

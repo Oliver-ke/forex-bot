@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import type { Candle } from "@forex-bot/contracts";
+import { describe, expect, it } from "vitest";
 import { swings } from "../src/swings.js";
 
 function mk(h: number, l: number, idx: number): Candle {

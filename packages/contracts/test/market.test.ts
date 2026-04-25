@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CandleSchema, TickSchema, MTFBundleSchema } from "../src/market.js";
+import { CandleSchema, MTFBundleSchema, TickSchema } from "../src/market.js";
 
 describe("market types", () => {
   it("Candle requires OHLCV with high >= low and open/close within range", () => {
@@ -18,9 +18,7 @@ describe("market types", () => {
   });
 
   it("Tick requires bid <= ask", () => {
-    expect(() =>
-      TickSchema.parse({ ts: 1, symbol: "EURUSD", bid: 1.09, ask: 1.08 }),
-    ).toThrow();
+    expect(() => TickSchema.parse({ ts: 1, symbol: "EURUSD", bid: 1.09, ask: 1.08 })).toThrow();
   });
 
   it("MTFBundle requires at least M15 and H1 arrays", () => {

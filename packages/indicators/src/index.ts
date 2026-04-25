@@ -6,3 +6,4 @@ export * from "./atr.js";
 export * from "./adx.js";
 export * from "./bollinger.js";
 export * from "./swings.js";
+export * from "./support-resistance.js";

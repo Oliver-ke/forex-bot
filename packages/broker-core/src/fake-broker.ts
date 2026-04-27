@@ -1,11 +1,4 @@
-import type {
-  AccountState,
-  Candle,
-  Position,
-  Symbol,
-  Tick,
-  Timeframe,
-} from "@forex-bot/contracts";
+import type { AccountState, Candle, Position, Symbol, Tick, Timeframe } from "@forex-bot/contracts";
 import type { Broker } from "./broker.js";
 import {
   BrokerNotFoundError,
@@ -58,7 +51,11 @@ export class FakeBroker implements Broker {
     return { ts: q.ts, symbol, bid: q.bid, ask: q.ask };
   }
 
-  async getCandles(symbol: Symbol, timeframe: Timeframe, limit: number): Promise<readonly Candle[]> {
+  async getCandles(
+    symbol: Symbol,
+    timeframe: Timeframe,
+    limit: number,
+  ): Promise<readonly Candle[]> {
     const arr = this.candles.get(`${symbol}:${timeframe}`) ?? [];
     return arr.slice(-limit);
   }

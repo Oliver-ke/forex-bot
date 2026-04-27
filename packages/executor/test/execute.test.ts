@@ -1,6 +1,6 @@
 import { FakeBroker } from "@forex-bot/broker-core";
 import { describe, expect, it } from "vitest";
-import { execute, type ExecuteInput } from "../src/execute.js";
+import { type ExecuteInput, execute } from "../src/execute.js";
 
 const NOW = 1_700_000_000_000;
 

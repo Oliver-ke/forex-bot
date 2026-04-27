@@ -30,8 +30,7 @@ function nextState(prev: OrderRecord, event: OrderEvent): Partial<OrderRecord> |
         }
         return { state: "submitted", ticket: event.ticket };
       }
-      if (event.kind === "submit_reject")
-        return { state: "rejected", rejectReason: event.reason };
+      if (event.kind === "submit_reject") return { state: "rejected", rejectReason: event.reason };
       return null;
     }
     case "submitted":

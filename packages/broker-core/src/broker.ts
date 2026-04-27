@@ -1,11 +1,4 @@
-import type {
-  AccountState,
-  Candle,
-  Position,
-  Symbol,
-  Tick,
-  Timeframe,
-} from "@forex-bot/contracts";
+import type { AccountState, Candle, Position, Symbol, Tick, Timeframe } from "@forex-bot/contracts";
 import type {
   ClosePositionResult,
   ModifyOrderRequest,

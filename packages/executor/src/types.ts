@@ -1,4 +1,4 @@
-import type { PendingOrder, Price, RiskDecision } from "@forex-bot/contracts";
+import type { Price } from "@forex-bot/contracts";
 
 export type OrderState =
   | "draft"
@@ -27,14 +27,6 @@ export interface OrderRecord {
   fillPrice?: Price;
   rejectReason?: string;
   history: ReadonlyArray<{ ts: number; event: OrderEvent }>;
-}
-
-export interface ExecuteInput {
-  now: number;
-  correlationId: string;
-  decision: Extract<RiskDecision, { approve: true }>;
-  order: PendingOrder;
-  preFire: PreFireInput;
 }
 
 export interface PreFireInput {

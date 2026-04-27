@@ -1,0 +1,123 @@
+syntax = "proto3";
+package forex_bot.mt5;
+
+service MT5 {
+  rpc GetQuote(GetQuoteRequest) returns (Tick);
+  rpc GetCandles(GetCandlesRequest) returns (CandlesResponse);
+  rpc GetAccount(GetAccountRequest) returns (AccountState);
+  rpc GetOpenPositions(GetOpenPositionsRequest) returns (OpenPositionsResponse);
+  rpc PlaceOrder(PlaceOrderRequest) returns (PlaceOrderResponse);
+  rpc ModifyOrder(ModifyOrderRequest) returns (ModifyOrderResponse);
+  rpc ClosePosition(ClosePositionRequest) returns (ClosePositionResponse);
+  rpc StreamTicks(StreamTicksRequest) returns (stream Tick);
+}
+
+enum Side {
+  SIDE_UNSPECIFIED = 0;
+  SIDE_BUY = 1;
+  SIDE_SELL = 2;
+}
+
+enum OrderType {
+  ORDER_TYPE_UNSPECIFIED = 0;
+  ORDER_TYPE_MARKET = 1;
+  ORDER_TYPE_LIMIT = 2;
+  ORDER_TYPE_STOP = 3;
+}
+
+enum Timeframe {
+  TIMEFRAME_UNSPECIFIED = 0;
+  TIMEFRAME_M1 = 1;
+  TIMEFRAME_M5 = 5;
+  TIMEFRAME_M15 = 15;
+  TIMEFRAME_M30 = 30;
+  TIMEFRAME_H1 = 60;
+  TIMEFRAME_H4 = 240;
+  TIMEFRAME_D1 = 1440;
+  TIMEFRAME_W1 = 10080;
+}
+
+message Tick {
+  int64 ts = 1;
+  string symbol = 2;
+  double bid = 3;
+  double ask = 4;
+}
+
+message Candle {
+  int64 ts = 1;
+  double open = 2;
+  double high = 3;
+  double low = 4;
+  double close = 5;
+  double volume = 6;
+}
+
+message AccountState {
+  int64 ts = 1;
+  string currency = 2;
+  double balance = 3;
+  double equity = 4;
+  double free_margin = 5;
+  double used_margin = 6;
+  double margin_level_pct = 7;
+}
+
+message Position {
+  string id = 1;
+  string symbol = 2;
+  Side side = 3;
+  double lot_size = 4;
+  double entry = 5;
+  double sl = 6;
+  double tp = 7;
+  int64 opened_at = 8;
+}
+
+message GetQuoteRequest { string symbol = 1; }
+
+message GetCandlesRequest {
+  string symbol = 1;
+  Timeframe timeframe = 2;
+  uint32 limit = 3;
+}
+message CandlesResponse { repeated Candle candles = 1; }
+
+message GetAccountRequest {}
+
+message GetOpenPositionsRequest {}
+message OpenPositionsResponse { repeated Position positions = 1; }
+
+message PlaceOrderRequest {
+  string symbol = 1;
+  Side side = 2;
+  double lot_size = 3;
+  OrderType type = 4;
+  optional double entry = 5;
+  optional double sl = 6;
+  optional double tp = 7;
+  optional int64 expires_at = 8;
+  optional string client_id = 9;
+  optional string comment = 10;
+}
+message PlaceOrderResponse {
+  string ticket = 1;
+  optional double fill_price = 2;
+  optional string pending_order_id = 3;
+}
+
+message ModifyOrderRequest {
+  string ticket = 1;
+  optional double sl = 2;
+  optional double tp = 3;
+}
+message ModifyOrderResponse { bool ok = 1; }
+
+message ClosePositionRequest { string ticket = 1; }
+message ClosePositionResponse {
+  double fill_price = 1;
+  double pnl = 2;
+  int64 closed_at = 3;
+}
+
+message StreamTicksRequest { repeated string symbols = 1; }

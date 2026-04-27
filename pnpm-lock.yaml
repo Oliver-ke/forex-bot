@@ -24,6 +24,12 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9
 
+  packages/broker-core:
+    dependencies:
+      '@forex-bot/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+
   packages/contracts:
     dependencies:
       zod:

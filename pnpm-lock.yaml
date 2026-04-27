@@ -36,6 +36,15 @@ importers:
         specifier: ^3.23.0
         version: 3.25.76
 
+  packages/executor:
+    dependencies:
+      '@forex-bot/broker-core':
+        specifier: workspace:*
+        version: link:../broker-core
+      '@forex-bot/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+
   packages/indicators:
     dependencies:
       '@forex-bot/contracts':

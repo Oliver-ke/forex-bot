@@ -8,23 +8,16 @@ import {
   type PlaceOrderRequest,
   type PlaceOrderResult,
 } from "@forex-bot/broker-core";
-import type {
-  AccountState,
-  Candle,
-  Position,
-  Symbol,
-  Tick,
-  Timeframe,
-} from "@forex-bot/contracts";
-import { type ServiceError, status as GrpcStatus } from "@grpc/grpc-js";
+import type { AccountState, Candle, Position, Symbol, Tick, Timeframe } from "@forex-bot/contracts";
+import { status as GrpcStatus, type ServiceError } from "@grpc/grpc-js";
 import {
-  type AccountState as ProtoAccountState,
   type CandlesResponse,
   type MT5Client,
   type OpenPositionsResponse,
-  OrderType as ProtoOrderType,
   type PlaceOrderResponse,
-  Side as ProtoSide,
+  type AccountState as ProtoAccountState,
+  OrderType as ProtoOrderType,
+  type Side as ProtoSide,
   type Tick as ProtoTick,
 } from "./generated/mt5.js";
 import { sideFromProto, sideToProto, tfToProto } from "./mappings.js";
@@ -41,10 +34,7 @@ function lift(err: ServiceError): Error {
   }
 }
 
-type UnaryCall<Req, Res> = (
-  req: Req,
-  cb: (err: ServiceError | null, res: Res) => void,
-) => unknown;
+type UnaryCall<Req, Res> = (req: Req, cb: (err: ServiceError | null, res: Res) => void) => unknown;
 
 function unary<Req, Res>(fn: UnaryCall<Req, Res>): (req: Req) => Promise<Res> {
   return (req) =>
@@ -60,8 +50,8 @@ export class MT5Broker implements Broker {
   constructor(private readonly client: MT5Client) {}
 
   async getQuote(symbol: Symbol): Promise<Tick> {
-    const t: ProtoTick = await unary<{ symbol: string }, ProtoTick>(
-      (req, cb) => this.client.getQuote(req, cb),
+    const t: ProtoTick = await unary<{ symbol: string }, ProtoTick>((req, cb) =>
+      this.client.getQuote(req, cb),
     )({ symbol });
     return { ts: Number(t.ts), symbol: t.symbol as Symbol, bid: t.bid, ask: t.ask };
   }
@@ -90,8 +80,8 @@ export class MT5Broker implements Broker {
   }
 
   async getAccount(): Promise<AccountState> {
-    const a: ProtoAccountState = await unary<Record<string, never>, ProtoAccountState>(
-      (req, cb) => this.client.getAccount(req, cb),
+    const a: ProtoAccountState = await unary<Record<string, never>, ProtoAccountState>((req, cb) =>
+      this.client.getAccount(req, cb),
     )({});
     return {
       ts: Number(a.ts),
@@ -105,10 +95,9 @@ export class MT5Broker implements Broker {
   }
 
   async getOpenPositions(): Promise<readonly Position[]> {
-    const r: OpenPositionsResponse = await unary<
-      Record<string, never>,
-      OpenPositionsResponse
-    >((req, cb) => this.client.getOpenPositions(req, cb))({});
+    const r: OpenPositionsResponse = await unary<Record<string, never>, OpenPositionsResponse>(
+      (req, cb) => this.client.getOpenPositions(req, cb),
+    )({});
     return r.positions.map((p) => ({
       id: p.id,
       symbol: p.symbol as Symbol,
@@ -125,8 +114,8 @@ export class MT5Broker implements Broker {
     if (req.type !== "market") {
       throw new BrokerRejectedError("MT5Broker only supports market orders in v1");
     }
-    const r: PlaceOrderResponse = await unary<unknown, PlaceOrderResponse>(
-      (rq, cb) => this.client.placeOrder(rq as never, cb),
+    const r: PlaceOrderResponse = await unary<unknown, PlaceOrderResponse>((rq, cb) =>
+      this.client.placeOrder(rq as never, cb),
     )({
       symbol: req.symbol,
       side: sideToProto(req.side),
@@ -155,9 +144,9 @@ export class MT5Broker implements Broker {
   }
 
   async closePosition(ticket: string): Promise<ClosePositionResult> {
-    const r = (await unary<{ ticket: string }, { fillPrice: number; pnl: number; closedAt: number }>(
+    const r = await unary<{ ticket: string }, { fillPrice: number; pnl: number; closedAt: number }>(
       (rq, cb) => this.client.closePosition(rq, cb),
-    )({ ticket }));
+    )({ ticket });
     return { fillPrice: r.fillPrice, pnl: r.pnl, closedAt: Number(r.closedAt) };
   }
 

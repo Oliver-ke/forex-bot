@@ -12,5 +12,9 @@
   "dependencies": {
     "@forex-bot/broker-core": "workspace:*",
     "@forex-bot/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "@forex-bot/broker-mt5": "workspace:*",
+    "@grpc/grpc-js": "^1.12.0"
   }
 }

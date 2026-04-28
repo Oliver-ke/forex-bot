@@ -1,9 +1,9 @@
 // gRPC handler shapes from @grpc/grpc-js are loose by design — typing these via
 // UntypedHandleCall would require synthesizing per-method types we already have
 // on the client side. noExplicitAny disabled for this file via biome.json override.
+import { MT5Service, OrderType, Side } from "@forex-bot/broker-mt5";
 import * as grpc from "@grpc/grpc-js";
 import { status as GrpcStatus, type Server, ServerCredentials } from "@grpc/grpc-js";
-import { MT5Service, OrderType, Side } from "../../src/generated/mt5.js";
 
 interface FakePosition {
   id: string;

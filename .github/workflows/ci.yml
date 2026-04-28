@@ -6,7 +6,7 @@ on:
     branches: [main]
 
 jobs:
-  verify:
+  ts:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -16,7 +16,9 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
+      - run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
       - run: pnpm install --frozen-lockfile
+      - run: pnpm proto:gen
       - run: pnpm -r typecheck
       - run: pnpm lint
       - run: pnpm test -- --coverage
@@ -25,3 +27,18 @@ jobs:
         with:
           name: coverage
           path: coverage/
+
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - uses: astral-sh/setup-uv@v3
+        with: { version: "0.4.30" }
+      - run: |
+          cd mt5-sidecar
+          uv venv
+          uv pip install -e ".[dev]"
+          make proto
+          uv run pytest -v

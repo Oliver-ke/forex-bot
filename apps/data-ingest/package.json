@@ -1,0 +1,19 @@
+{
+  "name": "@forex-bot/data-ingest",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "tsc -p tsconfig.json --outDir dist",
+    "start": "node --enable-source-maps dist/main.js"
+  },
+  "dependencies": {
+    "@forex-bot/cache": "workspace:*",
+    "@forex-bot/contracts": "workspace:*",
+    "@forex-bot/data-core": "workspace:*",
+    "@forex-bot/memory": "workspace:*"
+  }
+}

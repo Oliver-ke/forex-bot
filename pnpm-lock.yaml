@@ -24,6 +24,21 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@25.6.0)
 
+  apps/data-ingest:
+    dependencies:
+      '@forex-bot/cache':
+        specifier: workspace:*
+        version: link:../../packages/cache
+      '@forex-bot/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@forex-bot/data-core':
+        specifier: workspace:*
+        version: link:../../packages/data-core
+      '@forex-bot/memory':
+        specifier: workspace:*
+        version: link:../../packages/memory
+
   packages/broker-core:
     dependencies:
       '@forex-bot/contracts':

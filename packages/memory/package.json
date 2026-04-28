@@ -1,0 +1,22 @@
+{
+  "name": "@forex-bot/memory",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "tsc -p tsconfig.json --outDir dist"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.690.0",
+    "@aws-sdk/lib-dynamodb": "^3.690.0",
+    "@forex-bot/contracts": "workspace:*",
+    "@forex-bot/data-core": "workspace:*",
+    "pg": "^8.13.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.11.10"
+  }
+}

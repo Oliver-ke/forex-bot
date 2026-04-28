@@ -1,2 +1,1 @@
-// Concrete JournalStore + RagStore implementations live in Tasks 9/10.
-export {};
+export * from "./pgvector-rag.js";

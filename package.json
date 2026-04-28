@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "biome check .",
-    "format": "biome format --write ."
+    "format": "biome format --write .",
+    "proto:gen": "pnpm --filter @forex-bot/broker-mt5 proto:gen"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.0",

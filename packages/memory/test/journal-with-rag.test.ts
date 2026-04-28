@@ -17,7 +17,12 @@ describe("writeJournalWithRag", () => {
         tradeId: "t-1",
         symbol: "EURUSD",
         openedAt: 1,
-        verdict: { direction: "long", confidence: 0.8, horizon: "H1", reasoning: "trend continuation" },
+        verdict: {
+          direction: "long",
+          confidence: 0.8,
+          horizon: "H1",
+          reasoning: "trend continuation",
+        },
         risk: {
           approve: true,
           lotSize: 0.1,

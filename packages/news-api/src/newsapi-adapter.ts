@@ -38,12 +38,7 @@ export class NewsApiAdapter implements NewsAdapter {
   }
 
   async fetch(window: FetchWindow): Promise<readonly NewsHeadline[]> {
-    const url =
-      `https://newsapi.org/v2/everything` +
-      `?apiKey=${encodeURIComponent(this.apiKey)}` +
-      `&q=${encodeURIComponent(this.query)}` +
-      `&from=${new Date(window.since).toISOString()}` +
-      `&sortBy=publishedAt`;
+    const url = `https://newsapi.org/v2/everything?apiKey=${encodeURIComponent(this.apiKey)}&q=${encodeURIComponent(this.query)}&from=${new Date(window.since).toISOString()}&sortBy=publishedAt`;
     const json = await this.fetcher(url);
     if (json.status !== "ok") throw new Error(`NewsAPI returned status: ${json.status}`);
     const out: NewsHeadline[] = [];

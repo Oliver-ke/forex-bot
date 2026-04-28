@@ -1,10 +1,4 @@
-import type {
-  AccountState,
-  CalendarEvent,
-  NewsHeadline,
-  Symbol,
-  Tick,
-} from "@forex-bot/contracts";
+import type { AccountState, CalendarEvent, NewsHeadline, Symbol, Tick } from "@forex-bot/contracts";
 import type { HotCache } from "@forex-bot/data-core";
 import Redis from "ioredis";
 
@@ -49,14 +43,7 @@ export class RedisHotCache implements HotCache {
   }: { sinceMs: number; max?: number }): Promise<readonly NewsHeadline[]> {
     const raw =
       max !== undefined
-        ? await this.client.zrangebyscore(
-            `${this.ns}:headlines`,
-            sinceMs,
-            "+inf",
-            "LIMIT",
-            0,
-            max,
-          )
+        ? await this.client.zrangebyscore(`${this.ns}:headlines`, sinceMs, "+inf", "LIMIT", 0, max)
         : await this.client.zrangebyscore(`${this.ns}:headlines`, sinceMs, "+inf");
     return raw.map((s) => JSON.parse(s) as NewsHeadline);
   }

@@ -18,8 +18,7 @@ export async function cotWorker(input: CotWorkerInput): Promise<void> {
     until: input.nowMs,
   });
   const texts = reports.map(
-    (r) =>
-      `${r.symbol} COT: net non-commercial ${r.netNonCommercial}, change ${r.changeWeekly}`,
+    (r) => `${r.symbol} COT: net non-commercial ${r.netNonCommercial}, change ${r.changeWeekly}`,
   );
   if (texts.length === 0) {
     input.state.lastFetchTs = input.nowMs;

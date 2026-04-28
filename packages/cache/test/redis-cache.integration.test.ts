@@ -1,13 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { RedisHotCache } from "../src/redis-cache.js";
 
-const URL = process.env.REDIS_TEST_URL;
+const URL = process.env.REDIS_TEST_URL ?? "";
 
 describe.skipIf(!URL)("RedisHotCache (integration)", () => {
   let cache: RedisHotCache;
 
   beforeAll(async () => {
-    cache = new RedisHotCache({ url: URL!, namespace: `test:${Date.now()}` });
+    cache = new RedisHotCache({ url: URL, namespace: `test:${Date.now()}` });
     await cache.connect();
   });
 

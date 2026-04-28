@@ -28,8 +28,20 @@ describe("InMemoryJournalStore", () => {
       tradeId: "t-1",
       symbol: "EURUSD" as const,
       openedAt: 1,
-      verdict: { direction: "long" as const, confidence: 0.8, horizon: "H1" as const, reasoning: "x" },
-      risk: { approve: true as const, lotSize: 0.1, sl: 1.07, tp: 1.09, expiresAt: 2, reasons: ["ok"] },
+      verdict: {
+        direction: "long" as const,
+        confidence: 0.8,
+        horizon: "H1" as const,
+        reasoning: "x",
+      },
+      risk: {
+        approve: true as const,
+        lotSize: 0.1,
+        sl: 1.07,
+        tp: 1.09,
+        expiresAt: 2,
+        reasons: ["ok"],
+      },
     };
     await s.put(j);
     expect((await s.get("t-1"))?.tradeId).toBe("t-1");
@@ -49,7 +61,10 @@ describe("InMemoryJournalStore", () => {
     }
     const page1 = await s.list({ limit: 2 });
     expect(page1.items.map((j) => j.tradeId)).toEqual(["t-4", "t-3"]);
-    const page2 = await s.list({ limit: 2, cursor: page1.nextCursor });
+    const page2 = await s.list({
+      limit: 2,
+      ...(page1.nextCursor !== undefined ? { cursor: page1.nextCursor } : {}),
+    });
     expect(page2.items.map((j) => j.tradeId)).toEqual(["t-2", "t-1"]);
   });
 });
@@ -57,17 +72,52 @@ describe("InMemoryJournalStore", () => {
 describe("InMemoryRagStore", () => {
   it("returns top-K by cosine similarity", async () => {
     const s = new InMemoryRagStore();
-    await s.put({ id: "a", text: "a", embedding: [1, 0, 0], modelVersion: "v1", metadata: {}, ts: 1 });
-    await s.put({ id: "b", text: "b", embedding: [0, 1, 0], modelVersion: "v1", metadata: {}, ts: 2 });
-    await s.put({ id: "c", text: "c", embedding: [0.9, 0.1, 0], modelVersion: "v1", metadata: {}, ts: 3 });
+    await s.put({
+      id: "a",
+      text: "a",
+      embedding: [1, 0, 0],
+      modelVersion: "v1",
+      metadata: {},
+      ts: 1,
+    });
+    await s.put({
+      id: "b",
+      text: "b",
+      embedding: [0, 1, 0],
+      modelVersion: "v1",
+      metadata: {},
+      ts: 2,
+    });
+    await s.put({
+      id: "c",
+      text: "c",
+      embedding: [0.9, 0.1, 0],
+      modelVersion: "v1",
+      metadata: {},
+      ts: 3,
+    });
     const out = await s.search({ embedding: [1, 0, 0], k: 2 });
     expect(out.map((d) => d.id)).toEqual(["a", "c"]);
   });
 
   it("supports metadata exact-match filters", async () => {
     const s = new InMemoryRagStore();
-    await s.put({ id: "a", text: "a", embedding: [1, 0], modelVersion: "v1", metadata: { regime: "trending" }, ts: 1 });
-    await s.put({ id: "b", text: "b", embedding: [1, 0], modelVersion: "v1", metadata: { regime: "ranging" }, ts: 2 });
+    await s.put({
+      id: "a",
+      text: "a",
+      embedding: [1, 0],
+      modelVersion: "v1",
+      metadata: { regime: "trending" },
+      ts: 1,
+    });
+    await s.put({
+      id: "b",
+      text: "b",
+      embedding: [1, 0],
+      modelVersion: "v1",
+      metadata: { regime: "ranging" },
+      ts: 2,
+    });
     const out = await s.search({ embedding: [1, 0], k: 5, filter: { regime: "trending" } });
     expect(out.map((d) => d.id)).toEqual(["a"]);
   });

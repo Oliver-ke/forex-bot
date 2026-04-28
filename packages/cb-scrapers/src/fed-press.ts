@@ -60,7 +60,7 @@ function extractText(html: string): string {
   const { document } = parseHTML(html);
   const article = document.querySelector(".article") ?? document.body;
   if (!article) return "";
-  return Array.from(article.querySelectorAll("p"))
+  return Array.from(article.querySelectorAll("p") as Iterable<{ textContent: string | null }>)
     .map((el) => el.textContent?.trim() ?? "")
     .filter(Boolean)
     .join("\n\n");

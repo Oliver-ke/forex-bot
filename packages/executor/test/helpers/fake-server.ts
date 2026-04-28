@@ -25,7 +25,6 @@ export function startFakeServer(): Promise<{ port: number; server: Server; state
   const state: FakeState = { quotes: new Map(), positions: new Map() };
   state.quotes.set("EURUSD", { bid: 1.0801, ask: 1.0803, ts: 1 });
 
-  // biome-ignore lint/suspicious/noExplicitAny: gRPC handler shapes are loose by design here
   const impl: any = {
     getQuote: (call: any, cb: any) => {
       const q = state.quotes.get(call.request.symbol);

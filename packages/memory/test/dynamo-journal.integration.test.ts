@@ -3,7 +3,7 @@ import type { TradeJournal } from "@forex-bot/contracts";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { DynamoJournalStore } from "../src/dynamo-journal.js";
 
-const ENDPOINT = process.env.DYNAMO_TEST_ENDPOINT;
+const ENDPOINT = process.env.DYNAMO_TEST_ENDPOINT ?? "";
 const TABLE = "forex_bot_journal_test";
 
 describe.skipIf(!ENDPOINT)("DynamoJournalStore (integration)", () => {
@@ -45,7 +45,7 @@ describe.skipIf(!ENDPOINT)("DynamoJournalStore (integration)", () => {
     }
     store = new DynamoJournalStore({
       tableName: TABLE,
-      endpoint: ENDPOINT!,
+      endpoint: ENDPOINT,
       region: "us-east-1",
       credentials: { accessKeyId: "test", secretAccessKey: "test" },
     });

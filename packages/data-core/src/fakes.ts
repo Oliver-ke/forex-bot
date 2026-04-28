@@ -122,7 +122,10 @@ export class InMemoryHotCache implements HotCache {
     this.headlines.push(h);
   }
 
-  async recentHeadlines({ sinceMs, max }: { sinceMs: number; max?: number }): Promise<readonly NewsHeadline[]> {
+  async recentHeadlines({
+    sinceMs,
+    max,
+  }: { sinceMs: number; max?: number }): Promise<readonly NewsHeadline[]> {
     const filtered = this.headlines.filter((h) => h.ts >= sinceMs);
     return max ? filtered.slice(-max) : filtered;
   }

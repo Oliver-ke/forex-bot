@@ -58,12 +58,14 @@ export class PgvectorRagStore implements RagStore {
     filter?: Record<string, string>;
   }): Promise<readonly RagDoc[]> {
     if (query.embedding.length !== this.dimension) {
-      throw new Error(`query embedding length ${query.embedding.length} != configured ${this.dimension}`);
+      throw new Error(
+        `query embedding length ${query.embedding.length} != configured ${this.dimension}`,
+      );
     }
     const params: unknown[] = [toVectorLiteral(query.embedding), query.k];
     let filterSql = "";
     if (query.filter && Object.keys(query.filter).length > 0) {
-      filterSql = `WHERE metadata @> $3::jsonb`;
+      filterSql = "WHERE metadata @> $3::jsonb";
       params.push(JSON.stringify(query.filter));
     }
     const sql = `

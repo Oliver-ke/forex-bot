@@ -39,6 +39,24 @@ importers:
         specifier: workspace:*
         version: link:../../packages/memory
 
+  packages/agents:
+    dependencies:
+      '@forex-bot/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@forex-bot/data-core':
+        specifier: workspace:*
+        version: link:../data-core
+      '@forex-bot/indicators':
+        specifier: workspace:*
+        version: link:../indicators
+      '@forex-bot/llm-provider':
+        specifier: workspace:*
+        version: link:../llm-provider
+      zod:
+        specifier: ^3.23.0
+        version: 3.25.76
+
   packages/broker-core:
     dependencies:
       '@forex-bot/contracts':

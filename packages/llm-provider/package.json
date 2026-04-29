@@ -10,6 +10,7 @@
     "build": "tsc -p tsconfig.json --outDir dist"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.91.0",
     "@forex-bot/contracts": "workspace:*",
     "zod": "^3.23.0"
   }

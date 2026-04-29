@@ -1,5 +1,6 @@
 export * from "./aggregator.js";
 export * from "./debater.js";
+export * from "./judge.js";
 export * from "./fundamental-analyst.js";
 export * from "./regime.js";
 export * from "./sentiment-analyst.js";

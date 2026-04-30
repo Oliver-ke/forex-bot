@@ -58,10 +58,10 @@ export class AnthropicLlm implements LlmProvider {
           ...(thinking === "adaptive"
             ? { thinking: { type: "adaptive" } }
             : { thinking: { type: "disabled" } }),
-          // biome-ignore lint/suspicious/noExplicitAny: SDK types lag the public API for output_config
           output_config: {
             effort,
             format: zodOutputFormat(req.schema),
+            // biome-ignore lint/suspicious/noExplicitAny: SDK types lag public API for output_config
           } as any,
           // biome-ignore lint/suspicious/noExplicitAny: see above
         } as any)) as unknown as ParsedMessageResponse;

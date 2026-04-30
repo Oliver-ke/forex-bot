@@ -4,7 +4,15 @@ import { evaluate } from "@forex-bot/risk";
 import type { GraphState } from "./state.js";
 
 export async function gatesNode(state: GraphState): Promise<Partial<GraphState>> {
-  const decision = evaluate(state.gateContext);
+  if (!state.verdict) throw new Error("gatesNode requires state.verdict");
+  if (state.verdict.direction === "neutral") {
+    return {
+      tentativeDecision: { approve: false, vetoReason: "verdict: neutral direction" },
+    };
+  }
+  const side: "buy" | "sell" = state.verdict.direction === "long" ? "buy" : "sell";
+  const ctx = { ...state.gateContext, order: { ...state.gateContext.order, side } };
+  const decision = evaluate(ctx);
   return { tentativeDecision: decision };
 }
 

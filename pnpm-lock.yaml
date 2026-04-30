@@ -32,6 +32,12 @@ importers:
       '@forex-bot/broker-core':
         specifier: workspace:*
         version: link:../../packages/broker-core
+      '@forex-bot/broker-mt5':
+        specifier: workspace:*
+        version: link:../../packages/broker-mt5
+      '@forex-bot/cache':
+        specifier: workspace:*
+        version: link:../../packages/cache
       '@forex-bot/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts

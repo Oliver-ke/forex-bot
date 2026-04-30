@@ -13,6 +13,8 @@
   "dependencies": {
     "@forex-bot/agents": "workspace:*",
     "@forex-bot/broker-core": "workspace:*",
+    "@forex-bot/broker-mt5": "workspace:*",
+    "@forex-bot/cache": "workspace:*",
     "@forex-bot/contracts": "workspace:*",
     "@forex-bot/data-core": "workspace:*",
     "@forex-bot/executor": "workspace:*",

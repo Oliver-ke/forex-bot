@@ -19,6 +19,7 @@
     "@forex-bot/graph": "workspace:*",
     "@forex-bot/indicators": "workspace:*",
     "@forex-bot/llm-provider": "workspace:*",
+    "@forex-bot/memory": "workspace:*",
     "@forex-bot/risk": "workspace:*",
     "@forex-bot/telemetry": "workspace:*"
   }

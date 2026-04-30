@@ -50,6 +50,9 @@ importers:
       '@forex-bot/llm-provider':
         specifier: workspace:*
         version: link:../../packages/llm-provider
+      '@forex-bot/memory':
+        specifier: workspace:*
+        version: link:../../packages/memory
       '@forex-bot/risk':
         specifier: workspace:*
         version: link:../../packages/risk

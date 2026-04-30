@@ -1,0 +1,19 @@
+{
+  "name": "@forex-bot/graph",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "tsc -p tsconfig.json --outDir dist"
+  },
+  "dependencies": {
+    "@forex-bot/agents": "workspace:*",
+    "@forex-bot/contracts": "workspace:*",
+    "@forex-bot/llm-provider": "workspace:*",
+    "@forex-bot/risk": "workspace:*",
+    "@langchain/langgraph": "^0.2.0"
+  }
+}

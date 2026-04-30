@@ -240,6 +240,12 @@ importers:
         specifier: workspace:*
         version: link:../contracts
 
+  packages/telemetry:
+    dependencies:
+      '@forex-bot/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+
 packages:
 
   '@ampproject/remapping@2.3.0':

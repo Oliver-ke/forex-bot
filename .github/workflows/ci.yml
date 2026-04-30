@@ -21,6 +21,12 @@ jobs:
       - run: pnpm proto:gen
       - run: pnpm -r typecheck
       - run: pnpm lint
+      - name: Verify no real Anthropic calls in tests
+        run: |
+          if grep -RInE 'new\s+AnthropicLlm\b' --include='*.test.ts' .; then
+            echo "ERROR: AnthropicLlm cannot be instantiated in tests — use FakeLlm." >&2
+            exit 1
+          fi
       - run: pnpm test -- --coverage
       - uses: actions/upload-artifact@v4
         if: always()

@@ -11,9 +11,7 @@ export interface FundamentalAnalystInput {
   cotHint?: { netNonCommercial: number; changeWeekly: number };
 }
 
-export async function fundamentalAnalyst(
-  input: FundamentalAnalystInput,
-): Promise<AnalystOutput> {
+export async function fundamentalAnalyst(input: FundamentalAnalystInput): Promise<AnalystOutput> {
   const highImpact = input.bundle.upcomingEvents.filter((e) => e.impact === "high");
   const userMessage = JSON.stringify(
     {

@@ -11,6 +11,7 @@ export const RegimeSchema = z.object({
 export type Regime = z.infer<typeof RegimeSchema>;
 
 export const BiasSchema = z.enum(["long", "short", "neutral"]);
+export type Bias = z.infer<typeof BiasSchema>;
 
 export const AnalystSourceSchema = z.enum(["technical", "fundamental", "sentiment"]);
 

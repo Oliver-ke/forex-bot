@@ -1,4 +1,9 @@
-import { type AnalystOutput, type StateBundle, type Verdict, VerdictSchema } from "@forex-bot/contracts";
+import {
+  type AnalystOutput,
+  type StateBundle,
+  type Verdict,
+  VerdictSchema,
+} from "@forex-bot/contracts";
 import type { LlmProvider } from "@forex-bot/llm-provider";
 import type { DebaterOutput } from "./debater.js";
 import { JUDGE_SYSTEM_PROMPT } from "./prompts/judge.js";

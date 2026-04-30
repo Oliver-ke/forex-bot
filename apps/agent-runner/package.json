@@ -15,6 +15,7 @@
     "@forex-bot/broker-core": "workspace:*",
     "@forex-bot/contracts": "workspace:*",
     "@forex-bot/data-core": "workspace:*",
+    "@forex-bot/executor": "workspace:*",
     "@forex-bot/graph": "workspace:*",
     "@forex-bot/indicators": "workspace:*",
     "@forex-bot/llm-provider": "workspace:*",

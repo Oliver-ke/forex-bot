@@ -38,6 +38,9 @@ importers:
       '@forex-bot/data-core':
         specifier: workspace:*
         version: link:../../packages/data-core
+      '@forex-bot/executor':
+        specifier: workspace:*
+        version: link:../../packages/executor
       '@forex-bot/graph':
         specifier: workspace:*
         version: link:../../packages/graph

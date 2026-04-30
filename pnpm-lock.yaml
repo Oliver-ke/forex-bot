@@ -24,6 +24,36 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@25.6.0)
 
+  apps/agent-runner:
+    dependencies:
+      '@forex-bot/agents':
+        specifier: workspace:*
+        version: link:../../packages/agents
+      '@forex-bot/broker-core':
+        specifier: workspace:*
+        version: link:../../packages/broker-core
+      '@forex-bot/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@forex-bot/data-core':
+        specifier: workspace:*
+        version: link:../../packages/data-core
+      '@forex-bot/graph':
+        specifier: workspace:*
+        version: link:../../packages/graph
+      '@forex-bot/indicators':
+        specifier: workspace:*
+        version: link:../../packages/indicators
+      '@forex-bot/llm-provider':
+        specifier: workspace:*
+        version: link:../../packages/llm-provider
+      '@forex-bot/risk':
+        specifier: workspace:*
+        version: link:../../packages/risk
+      '@forex-bot/telemetry':
+        specifier: workspace:*
+        version: link:../../packages/telemetry
+
   apps/data-ingest:
     dependencies:
       '@forex-bot/cache':

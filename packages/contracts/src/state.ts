@@ -29,6 +29,7 @@ export const TickTriggerSchema = z.object({
   timeframe: TimeframeSchema.optional(),
   detail: z.string().optional(),
 });
+export type TickTrigger = z.infer<typeof TickTriggerSchema>;
 
 export const StateBundleSchema = z.object({
   symbol: SymbolSchema,

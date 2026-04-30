@@ -1,0 +1,24 @@
+{
+  "name": "@forex-bot/agent-runner",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "tsc -p tsconfig.json --outDir dist",
+    "start": "node --import tsx src/main.ts"
+  },
+  "dependencies": {
+    "@forex-bot/agents": "workspace:*",
+    "@forex-bot/broker-core": "workspace:*",
+    "@forex-bot/contracts": "workspace:*",
+    "@forex-bot/data-core": "workspace:*",
+    "@forex-bot/graph": "workspace:*",
+    "@forex-bot/indicators": "workspace:*",
+    "@forex-bot/llm-provider": "workspace:*",
+    "@forex-bot/risk": "workspace:*",
+    "@forex-bot/telemetry": "workspace:*"
+  }
+}

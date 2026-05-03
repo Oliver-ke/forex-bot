@@ -18,6 +18,7 @@
     "@forex-bot/eval-core": "workspace:*",
     "@forex-bot/graph": "workspace:*",
     "@forex-bot/llm-provider": "workspace:*",
-    "@forex-bot/risk": "workspace:*"
+    "@forex-bot/risk": "workspace:*",
+    "zod": "^3.23.0"
   }
 }

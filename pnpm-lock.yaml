@@ -190,6 +190,36 @@ importers:
         specifier: ^5.5.0
         version: 5.6.0
 
+  packages/eval-replay:
+    dependencies:
+      '@forex-bot/agent-runner':
+        specifier: workspace:*
+        version: link:../../apps/agent-runner
+      '@forex-bot/agents':
+        specifier: workspace:*
+        version: link:../agents
+      '@forex-bot/broker-core':
+        specifier: workspace:*
+        version: link:../broker-core
+      '@forex-bot/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@forex-bot/data-core':
+        specifier: workspace:*
+        version: link:../data-core
+      '@forex-bot/eval-core':
+        specifier: workspace:*
+        version: link:../eval-core
+      '@forex-bot/graph':
+        specifier: workspace:*
+        version: link:../graph
+      '@forex-bot/llm-provider':
+        specifier: workspace:*
+        version: link:../llm-provider
+      '@forex-bot/risk':
+        specifier: workspace:*
+        version: link:../risk
+
   packages/executor:
     dependencies:
       '@forex-bot/broker-core':

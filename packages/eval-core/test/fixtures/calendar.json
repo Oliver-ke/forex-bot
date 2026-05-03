@@ -1,0 +1,16 @@
+[
+  {
+    "ts": 1700000000000,
+    "currency": "USD",
+    "impact": "high",
+    "title": "Non-Farm Payrolls",
+    "forecast": 200000,
+    "previous": 187000
+  },
+  {
+    "ts": 1700003600000,
+    "currency": "EUR",
+    "impact": "medium",
+    "title": "ECB Press Conference"
+  }
+]

@@ -181,6 +181,15 @@ importers:
         specifier: workspace:*
         version: link:../contracts
 
+  packages/eval-core:
+    dependencies:
+      '@forex-bot/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      csv-parse:
+        specifier: ^5.5.0
+        version: 5.6.0
+
   packages/executor:
     dependencies:
       '@forex-bot/broker-core':
@@ -1235,6 +1244,9 @@ packages:
 
   cssom@0.5.0:
     resolution: {integrity: sha512-iKuQcq+NdHqlAcwUY0o/HL69XQrUaQdMjmStJ8JFmUaiiQErlhrmuigkg/CU4E2J0IyUKUrMAgl36TvN67MqTw==}
+
+  csv-parse@5.6.0:
+    resolution: {integrity: sha512-l3nz3euub2QMg5ouu5U09Ew9Wf6/wQ8I++ch1loQ0ljmzhmfZYrH9fflS22i/PQEvsPvxCwxgz5q7UB8K1JO4Q==}
 
   debug@4.4.3:
     resolution: {integrity: sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA==}
@@ -3014,6 +3026,8 @@ snapshots:
   css-what@6.2.2: {}
 
   cssom@0.5.0: {}
+
+  csv-parse@5.6.0: {}
 
   debug@4.4.3:
     dependencies:

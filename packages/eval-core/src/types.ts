@@ -1,4 +1,10 @@
-import type { RiskDecision, Symbol, TradeJournal, TradeOutcome, Verdict } from "@forex-bot/contracts";
+import type {
+  RiskDecision,
+  Symbol,
+  TradeJournal,
+  TradeOutcome,
+  Verdict,
+} from "@forex-bot/contracts";
 import type { Metrics } from "./metrics.js";
 
 export interface Trade {

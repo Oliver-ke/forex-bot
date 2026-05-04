@@ -13,3 +13,4 @@ export {
   type ReplayEngineConfig,
   type ReplayEngineDeps,
 } from "./replay-engine.js";
+export { formatJson, formatMarkdown } from "./report.js";

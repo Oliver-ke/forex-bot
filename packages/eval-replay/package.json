@@ -1,0 +1,24 @@
+{
+  "name": "@forex-bot/eval-replay",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "tsc -p tsconfig.json --outDir dist"
+  },
+  "dependencies": {
+    "@forex-bot/agent-runner": "workspace:*",
+    "@forex-bot/agents": "workspace:*",
+    "@forex-bot/broker-core": "workspace:*",
+    "@forex-bot/contracts": "workspace:*",
+    "@forex-bot/data-core": "workspace:*",
+    "@forex-bot/eval-core": "workspace:*",
+    "@forex-bot/graph": "workspace:*",
+    "@forex-bot/llm-provider": "workspace:*",
+    "@forex-bot/risk": "workspace:*",
+    "zod": "^3.23.0"
+  }
+}

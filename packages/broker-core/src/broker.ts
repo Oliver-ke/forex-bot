@@ -7,6 +7,8 @@ import type {
 } from "./types.js";
 
 export interface Broker {
+  /** True if this broker is connected to a demo/paper account. False otherwise. */
+  readonly isDemo: boolean;
   getQuote(symbol: Symbol): Promise<Tick>;
   getCandles(symbol: Symbol, timeframe: Timeframe, limit: number): Promise<readonly Candle[]>;
   getAccount(): Promise<AccountState>;

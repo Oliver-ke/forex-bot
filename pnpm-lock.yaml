@@ -81,6 +81,72 @@ importers:
         specifier: workspace:*
         version: link:../../packages/memory
 
+  apps/eval-event-study:
+    dependencies:
+      '@forex-bot/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@forex-bot/eval-event-study':
+        specifier: workspace:*
+        version: link:../../packages/eval-event-study
+      '@forex-bot/llm-provider':
+        specifier: workspace:*
+        version: link:../../packages/llm-provider
+
+  apps/eval-replay:
+    dependencies:
+      '@forex-bot/agent-runner':
+        specifier: workspace:*
+        version: link:../agent-runner
+      '@forex-bot/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@forex-bot/eval-core':
+        specifier: workspace:*
+        version: link:../../packages/eval-core
+      '@forex-bot/eval-replay':
+        specifier: workspace:*
+        version: link:../../packages/eval-replay
+      '@forex-bot/llm-provider':
+        specifier: workspace:*
+        version: link:../../packages/llm-provider
+      '@forex-bot/risk':
+        specifier: workspace:*
+        version: link:../../packages/risk
+
+  apps/paper-runner:
+    dependencies:
+      '@forex-bot/agent-runner':
+        specifier: workspace:*
+        version: link:../agent-runner
+      '@forex-bot/broker-core':
+        specifier: workspace:*
+        version: link:../../packages/broker-core
+      '@forex-bot/broker-mt5':
+        specifier: workspace:*
+        version: link:../../packages/broker-mt5
+      '@forex-bot/cache':
+        specifier: workspace:*
+        version: link:../../packages/cache
+      '@forex-bot/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@forex-bot/data-core':
+        specifier: workspace:*
+        version: link:../../packages/data-core
+      '@forex-bot/eval-core':
+        specifier: workspace:*
+        version: link:../../packages/eval-core
+      '@forex-bot/llm-provider':
+        specifier: workspace:*
+        version: link:../../packages/llm-provider
+      '@forex-bot/risk':
+        specifier: workspace:*
+        version: link:../../packages/risk
+      '@forex-bot/telemetry':
+        specifier: workspace:*
+        version: link:../../packages/telemetry
+
   packages/agents:
     dependencies:
       '@forex-bot/contracts':
@@ -180,6 +246,76 @@ importers:
       '@forex-bot/contracts':
         specifier: workspace:*
         version: link:../contracts
+
+  packages/eval-core:
+    dependencies:
+      '@forex-bot/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      csv-parse:
+        specifier: ^5.5.0
+        version: 5.6.0
+
+  packages/eval-event-study:
+    dependencies:
+      '@forex-bot/agents':
+        specifier: workspace:*
+        version: link:../agents
+      '@forex-bot/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@forex-bot/eval-core':
+        specifier: workspace:*
+        version: link:../eval-core
+      '@forex-bot/graph':
+        specifier: workspace:*
+        version: link:../graph
+      '@forex-bot/llm-provider':
+        specifier: workspace:*
+        version: link:../llm-provider
+      '@forex-bot/risk':
+        specifier: workspace:*
+        version: link:../risk
+      zod:
+        specifier: ^3.23.0
+        version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: ^20.0.0
+        version: 20.19.39
+
+  packages/eval-replay:
+    dependencies:
+      '@forex-bot/agent-runner':
+        specifier: workspace:*
+        version: link:../../apps/agent-runner
+      '@forex-bot/agents':
+        specifier: workspace:*
+        version: link:../agents
+      '@forex-bot/broker-core':
+        specifier: workspace:*
+        version: link:../broker-core
+      '@forex-bot/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@forex-bot/data-core':
+        specifier: workspace:*
+        version: link:../data-core
+      '@forex-bot/eval-core':
+        specifier: workspace:*
+        version: link:../eval-core
+      '@forex-bot/graph':
+        specifier: workspace:*
+        version: link:../graph
+      '@forex-bot/llm-provider':
+        specifier: workspace:*
+        version: link:../llm-provider
+      '@forex-bot/risk':
+        specifier: workspace:*
+        version: link:../risk
+      zod:
+        specifier: ^3.23.0
+        version: 3.25.76
 
   packages/executor:
     dependencies:
@@ -1052,6 +1188,7 @@ packages:
   '@smithy/util-retry@4.3.6':
     resolution: {integrity: sha512-p6/FO1n2KxMeQyna067i0uJ6TSbb165ZhnRtCpWh4Foxqbfc6oW+XITaL8QkFJj3KFnDe2URt4gOhgU06EP9ew==}
     engines: {node: '>=18.0.0'}
+    deprecated: '@smithy/util-retry v4.3.6 contains a bug in Adaptive Retry, see https://github.com/smithy-lang/smithy-typescript/issues/1993. Upgrade to 4.3.7+'
 
   '@smithy/util-stream@4.5.25':
     resolution: {integrity: sha512-/PFpG4k8Ze8Ei+mMKj3oiPICYekthuzePZMgZbCqMiXIHHf4n2aZ4Ps0aSRShycFTGuj/J6XldmC0x0DwednIA==}
@@ -1082,6 +1219,9 @@ packages:
 
   '@types/json-schema@7.0.15':
     resolution: {integrity: sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==}
+
+  '@types/node@20.19.39':
+    resolution: {integrity: sha512-orrrD74MBUyK8jOAD/r0+lfa1I2MO6I+vAkmAWzMYbCcgrN4lCrmK52gRFQq/JRxfYPfonkr4b0jcY7Olqdqbw==}
 
   '@types/node@25.6.0':
     resolution: {integrity: sha512-+qIYRKdNYJwY3vRCZMdJbPLJAtGjQBudzZzdzwQYkEPQd+PJGixUL5QfvCLDaULoLv+RhT3LDkwEfKaAkgSmNQ==}
@@ -1235,6 +1375,9 @@ packages:
 
   cssom@0.5.0:
     resolution: {integrity: sha512-iKuQcq+NdHqlAcwUY0o/HL69XQrUaQdMjmStJ8JFmUaiiQErlhrmuigkg/CU4E2J0IyUKUrMAgl36TvN67MqTw==}
+
+  csv-parse@5.6.0:
+    resolution: {integrity: sha512-l3nz3euub2QMg5ouu5U09Ew9Wf6/wQ8I++ch1loQ0ljmzhmfZYrH9fflS22i/PQEvsPvxCwxgz5q7UB8K1JO4Q==}
 
   debug@4.4.3:
     resolution: {integrity: sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA==}
@@ -1725,15 +1868,20 @@ packages:
   uhyphen@0.2.0:
     resolution: {integrity: sha512-qz3o9CHXmJJPGBdqzab7qAYuW8kQGKNEuoHFYrBwV6hWIMcpAmxDLXojcHfFr9US1Pe6zUswEIJIbLI610fuqA==}
 
+  undici-types@6.21.0:
+    resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
+
   undici-types@7.19.2:
     resolution: {integrity: sha512-qYVnV5OEm2AW8cJMCpdV20CDyaN3g0AjDlOGf1OW4iaDEx8MwdtChUp4zu4H0VP3nDRF/8RKWH+IPp9uW0YGZg==}
 
   uuid@10.0.0:
     resolution: {integrity: sha512-8XkAphELsDnEGrDxUOHB3RGvXz6TeuYSGEZBOjtTtPm2lwhGBjLgOzLHB63IUWfBpNucQjND6d3AOudO+H3RWQ==}
+    deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
     hasBin: true
 
   uuid@9.0.1:
     resolution: {integrity: sha512-b+1eJOlsR9K8HJpow9Ok3fiWOWSIcIzXodvv0rQjVoOVNpWMpxf1wZNpt4y9h10odCNrqnYp1OBzRktckBe3sA==}
+    deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
     hasBin: true
 
   vite-node@2.1.9:
@@ -2854,13 +3002,18 @@ snapshots:
 
   '@types/json-schema@7.0.15': {}
 
+  '@types/node@20.19.39':
+    dependencies:
+      undici-types: 6.21.0
+
   '@types/node@25.6.0':
     dependencies:
       undici-types: 7.19.2
+    optional: true
 
   '@types/pg@8.20.0':
     dependencies:
-      '@types/node': 25.6.0
+      '@types/node': 20.19.39
       pg-protocol: 1.13.0
       pg-types: 2.2.0
 
@@ -3014,6 +3167,8 @@ snapshots:
   css-what@6.2.2: {}
 
   cssom@0.5.0: {}
+
+  csv-parse@5.6.0: {}
 
   debug@4.4.3:
     dependencies:
@@ -3365,7 +3520,7 @@ snapshots:
       '@protobufjs/path': 1.1.2
       '@protobufjs/pool': 1.1.0
       '@protobufjs/utf8': 1.1.1
-      '@types/node': 25.6.0
+      '@types/node': 20.19.39
       long: 5.3.2
 
   pure-rand@6.1.0: {}
@@ -3507,7 +3662,10 @@ snapshots:
 
   uhyphen@0.2.0: {}
 
-  undici-types@7.19.2: {}
+  undici-types@6.21.0: {}
+
+  undici-types@7.19.2:
+    optional: true
 
   uuid@10.0.0: {}
 

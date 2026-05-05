@@ -1,0 +1,83 @@
+name: eval-weekly-full
+# Weekly full-mode replay: hits the real Anthropic API for the consensus path.
+# Sunday 06:00 UTC so it lands after the nightly cheap runs and outside any
+# Monday-morning maintenance windows.
+#
+# Schedule-only by design — fork PRs cannot read `ANTHROPIC_API_KEY`, so
+# allowing PR triggers would either break for forks or leak budget for trunk.
+# `workflow_dispatch` is enabled so maintainers can trigger an ad-hoc run.
+
+on:
+  schedule:
+    # Sunday at 06:00 UTC.
+    - cron: "0 6 * * 0"
+  workflow_dispatch:
+
+jobs:
+  event-study-weekly-full:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    # `vars.WEEKLY_REPLAY_BUDGET_USD` is a repo-level GitHub Actions variable
+    # (not a secret — it's a non-sensitive cap). Defaults to 50 when unset.
+    env:
+      WEEKLY_REPLAY_BUDGET_USD: ${{ vars.WEEKLY_REPLAY_BUDGET_USD || '50' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm proto:gen
+      - name: Verify Anthropic key is present
+        # Fail fast and loud if the secret is missing — better than letting
+        # the CLI's CliUsageError surface mid-run.
+        run: |
+          if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+            echo "::error::ANTHROPIC_API_KEY repo secret is required for the weekly full-mode replay."
+            exit 1
+          fi
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      # Workspace packages declare `"main": "./src/index.ts"`, so we run via
+      # `pnpm dlx tsx` rather than relying on the broken `pnpm start` chain.
+      - name: Run event-study (full, all canonical fixtures)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p reports/event-study-full
+          pnpm dlx tsx apps/eval-event-study/src/main.ts \
+            --all --mode full --out reports/event-study-full
+      - name: Run full-mode replay (budget-capped)
+        # `set -euo pipefail` makes the job fail loudly if the CLI exits
+        # non-zero — which it will if the (CLI-enforced) budget cap trips.
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p reports/replay-full
+          if [ ! -d eval-fixtures/bars ]; then
+            echo "::warning::eval-fixtures/bars missing — skipping replay until fixture data is committed"
+            exit 0
+          fi
+          pnpm dlx tsx apps/eval-replay/src/main.ts \
+            --symbols EURUSD \
+            --start 2024-12-01T00:00Z \
+            --end 2024-12-30T00:00Z \
+            --bars-dir eval-fixtures/bars \
+            --headlines eval-fixtures/headlines.json \
+            --calendar eval-fixtures/calendar.json \
+            --mode full \
+            --budget-usd "${WEEKLY_REPLAY_BUDGET_USD}" \
+            --out reports/replay-full
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-weekly-reports
+          path: reports/
+          if-no-files-found: warn

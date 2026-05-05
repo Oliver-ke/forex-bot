@@ -47,7 +47,10 @@ function unary<Req, Res>(fn: UnaryCall<Req, Res>): (req: Req) => Promise<Res> {
 }
 
 export class MT5Broker implements Broker {
-  constructor(private readonly client: MT5Client) {}
+  constructor(
+    private readonly client: MT5Client,
+    public readonly isDemo: boolean = false,
+  ) {}
 
   async getQuote(symbol: Symbol): Promise<Tick> {
     const t: ProtoTick = await unary<{ symbol: string }, ProtoTick>((req, cb) =>

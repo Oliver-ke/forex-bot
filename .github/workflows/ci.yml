@@ -27,6 +27,14 @@ jobs:
             echo "ERROR: AnthropicLlm cannot be instantiated in tests — use FakeLlm." >&2
             exit 1
           fi
+      # PR-level event-study verification is covered by the CLI integration
+      # test in `apps/eval-event-study/test/cli.test.ts`, which `pnpm test`
+      # picks up via vitest's `apps/*/test/**` include glob. We deliberately
+      # do NOT add a separate `event-study-cheap` job here: the built-in
+      # CHEAP_FAKE_LLM=1 fake route is always-long, but two of the three
+      # canonical fixtures (NFP, SNB) expect short — so a CLI run with the
+      # built-in fake would always fail PRs. The cron jobs in
+      # `eval-nightly.yml` and `eval-weekly.yml` cover wider replays.
       - run: pnpm test -- --coverage
       - uses: actions/upload-artifact@v4
         if: always()

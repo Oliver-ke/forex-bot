@@ -1,0 +1,82 @@
+name: eval-nightly
+# Nightly eval pipeline: runs the full event-study (all canonical fixtures)
+# in cheap mode, plus a 90d cheap replay against committed fixture data.
+# Reports are uploaded as workflow artifacts.
+#
+# Schedule-only by design — no PR/push trigger — so we never burn CI minutes
+# (or risk fork-PR secret access) on every commit. `workflow_dispatch` is
+# enabled so maintainers can trigger an ad-hoc run from the Actions tab.
+
+on:
+  schedule:
+    # 04:00 UTC every day. Avoids the 00:00 UTC GitHub-wide cron storm.
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+
+jobs:
+  event-study-nightly:
+    # Belt-and-braces: the workflow's `on:` already restricts triggers, but
+    # this guard means a fork that copies the file in and adds a `push:`
+    # trigger still wouldn't run unless they explicitly schedule/dispatch.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm proto:gen
+      # We run the CLIs via `pnpm dlx tsx` rather than the package `start`
+      # script. Workspace packages declare `"main": "./src/index.ts"`, so
+      # the compiled CLI's `import "@forex-bot/eval-event-study"` resolves
+      # to a .ts file that plain `node` can't load. tsx handles that, and
+      # avoids needing an `npm install tsx` step.
+      - name: Run event-study (cheap, all canonical fixtures)
+        # CHEAP_FAKE_LLM=1 routes every analyst long, so fixtures whose
+        # `expected.direction` is short will fail scoring (NFP and SNB).
+        # That's intended signal — the nightly is allowed to surface this
+        # until a recorded LlmCache lands. The summary artifact is uploaded
+        # either way; `|| true` keeps the step from blocking later steps.
+        env:
+          CHEAP_FAKE_LLM: "1"
+        run: |
+          set -uo pipefail
+          mkdir -p reports/event-study
+          pnpm dlx tsx apps/eval-event-study/src/main.ts \
+            --all --mode cheap --out reports/event-study \
+            || echo "event-study reported failures (see reports/event-study/summary.md)"
+      - name: Run 90d cheap replay
+        # The replay CLI requires `--cache-dir` in cheap mode (replay-only),
+        # plus committed bars/headlines/calendar fixture data. None of that
+        # is in the repo yet, so this step is a guarded no-op that emits a
+        # workflow warning until the data lands.
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          mkdir -p reports/replay-90d
+          if [ ! -d eval-fixtures/bars ] || [ ! -d eval-fixtures/llm-cache ]; then
+            echo "::warning::eval-fixtures/{bars,llm-cache} missing — skipping 90d cheap replay until fixture data is committed"
+            exit 0
+          fi
+          pnpm dlx tsx apps/eval-replay/src/main.ts \
+            --symbols EURUSD \
+            --start 2024-10-01T00:00Z \
+            --end 2024-12-30T00:00Z \
+            --bars-dir eval-fixtures/bars \
+            --headlines eval-fixtures/headlines.json \
+            --calendar eval-fixtures/calendar.json \
+            --mode cheap \
+            --cache-dir eval-fixtures/llm-cache \
+            --out reports/replay-90d
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-nightly-reports
+          path: reports/
+          if-no-files-found: warn

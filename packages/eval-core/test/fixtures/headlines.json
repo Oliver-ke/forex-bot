@@ -1,0 +1,14 @@
+[
+  {
+    "ts": 1700000000000,
+    "source": "Reuters",
+    "title": "ECB holds rates steady",
+    "summary": "The European Central Bank kept its main refinancing rate unchanged.",
+    "symbolsMentioned": ["EURUSD"]
+  },
+  {
+    "ts": 1700000600000,
+    "source": "Bloomberg",
+    "title": "US jobless claims fall"
+  }
+]

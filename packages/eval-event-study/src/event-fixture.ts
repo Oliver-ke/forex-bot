@@ -1,4 +1,6 @@
 import { readFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   CalendarEventSchema,
   MTFBundleSchema,
@@ -32,6 +34,13 @@ export const EventFixtureSchema = z.object({
 });
 
 export type EventFixture = z.infer<typeof EventFixtureSchema>;
+
+/**
+ * Absolute filesystem path to the canonical fixture library shipped with this
+ * package. Resolved relative to this module's URL so it works from any cwd
+ * (CLI, tests, downstream apps).
+ */
+export const LIBRARY_DIR = join(dirname(fileURLToPath(import.meta.url)), "library");
 
 /** Loads a JSON fixture from disk and validates against the schema. */
 export async function loadEventFixture(path: string): Promise<EventFixture> {

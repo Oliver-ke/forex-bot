@@ -81,6 +81,18 @@ importers:
         specifier: workspace:*
         version: link:../../packages/memory
 
+  apps/eval-event-study:
+    dependencies:
+      '@forex-bot/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@forex-bot/eval-event-study':
+        specifier: workspace:*
+        version: link:../../packages/eval-event-study
+      '@forex-bot/llm-provider':
+        specifier: workspace:*
+        version: link:../../packages/llm-provider
+
   apps/eval-replay:
     dependencies:
       '@forex-bot/agent-runner':

@@ -1,4 +1,5 @@
 import { detectTriggers, tick } from "@forex-bot/agent-runner";
+import type { Broker } from "@forex-bot/broker-core";
 import { MT5Broker, createMT5Client } from "@forex-bot/broker-mt5";
 import { RedisHotCache } from "@forex-bot/cache";
 import {
@@ -7,6 +8,7 @@ import {
   type Symbol,
   defaultRiskConfig,
 } from "@forex-bot/contracts";
+import type { HotCache } from "@forex-bot/data-core";
 import type { Trade } from "@forex-bot/eval-core";
 import { AnthropicLlm, type LlmProvider, type StructuredRequest } from "@forex-bot/llm-provider";
 import { CorrelationMatrix, type GateContext, KillSwitch } from "@forex-bot/risk";
@@ -20,7 +22,7 @@ import {
   assertDemoBroker,
 } from "./index.js";
 
-interface PaperConfig {
+export interface PaperConfig {
   mt5Host: string;
   mt5Port: number;
   redisUrl: string;
@@ -32,7 +34,7 @@ interface PaperConfig {
   paperOutDir: string;
 }
 
-function readConfig(): PaperConfig {
+export function readConfig(): PaperConfig {
   if (process.env.PAPER_MODE !== "1") {
     throw new Error("PAPER_MODE=1 is required to run paper-runner");
   }
@@ -89,7 +91,7 @@ class BudgetWrappedLlm implements LlmProvider {
   }
 }
 
-function buildGateContext(
+function buildGateContextDefault(
   now: number,
   account: GateContext["account"],
   symbol: Symbol,
@@ -125,12 +127,12 @@ function buildGateContext(
   };
 }
 
-function utcDayMs(ms: number): number {
+export function utcDayMs(ms: number): number {
   const d = new Date(ms);
   return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
 }
 
-function emptyDecisionCounters(): DecisionCounters {
+export function emptyDecisionCounters(): DecisionCounters {
   return {
     ticks: 0,
     approved: 0,
@@ -147,7 +149,7 @@ function emptyDecisionCounters(): DecisionCounters {
  * track real position lifecycle; the close price is the bundle's mid quote and
  * pnl is left at zero. Replaced with a real ledger when v2 lands.
  */
-function synthesizeTrade(
+export function synthesizeTrade(
   ts: number,
   bundle: StateBundle,
   decision: Extract<RiskDecision, { approve: true }>,
@@ -177,6 +179,133 @@ function synthesizeTrade(
   };
 }
 
+export interface PaperRunnerDeps {
+  broker: Broker;
+  cache: HotCache;
+  llm: LlmProvider;
+  budget: BudgetTracker;
+  writer: MetricsWriter;
+  log: Logger;
+  watchedSymbols: readonly Symbol[];
+  consensusThreshold: number;
+  /** Build GateContext per tick. */
+  buildGateContext: (now: number, account: GateContext["account"], symbol: Symbol) => GateContext;
+}
+
+export interface RunIterationsState {
+  lastTickedMs: number;
+  lastRebalanceMs: number;
+  lastFlushDayMs: number;
+  cumulativeTrades: Trade[];
+  sessions: Map<Trade, SessionKey>;
+  regimes: Map<Trade, RegimeKey>;
+  decisions: DecisionCounters;
+}
+
+/** Build the initial state for the poll loop, anchored at `nowMs`. */
+export function initialState(nowMs: number): RunIterationsState {
+  return {
+    lastTickedMs: nowMs,
+    lastRebalanceMs: nowMs,
+    lastFlushDayMs: utcDayMs(nowMs),
+    cumulativeTrades: [],
+    sessions: new Map(),
+    regimes: new Map(),
+    decisions: emptyDecisionCounters(),
+  };
+}
+
+/**
+ * Runs one iteration of the paper-runner poll loop. Mutates `state` in place
+ * and returns it for convenient chaining. Does NOT sleep — caller controls
+ * pacing. Daily flush fires when `nowMs` crosses a UTC day boundary.
+ */
+export async function runIteration(
+  deps: PaperRunnerDeps,
+  state: RunIterationsState,
+  nowMs: number,
+): Promise<RunIterationsState> {
+  if (deps.budget.tripped) {
+    deps.log.warn("budget tripped, skipping tick", { spendUsd: deps.budget.spendUsd });
+  } else {
+    for (const symbol of deps.watchedSymbols) {
+      try {
+        const candlesH1 = await deps.broker.getCandles(symbol, "H1", 200);
+        const calendar = await deps.cache.getCalendarWindow();
+        const triggers = detectTriggers({
+          nowMs,
+          lastTickedMs: state.lastTickedMs,
+          candlesByTf: { H1: candlesH1 },
+          upcomingEvents: calendar,
+          lastRebalanceMs: state.lastRebalanceMs,
+        });
+        if (triggers.length === 0) continue;
+
+        const account = await deps.broker.getAccount();
+        const trigger = triggers[0];
+        if (!trigger) continue;
+        const result = await tick({
+          broker: deps.broker,
+          cache: deps.cache,
+          llm: deps.llm,
+          symbol,
+          ts: nowMs,
+          trigger,
+          consensusThreshold: deps.consensusThreshold,
+          buildGateContext: () => deps.buildGateContext(nowMs, account, symbol),
+        });
+        state.decisions.ticks += 1;
+        if (result.decision.approve) {
+          state.decisions.approved += 1;
+          const trade = synthesizeTrade(nowMs, result.bundle, result.decision);
+          state.cumulativeTrades.push(trade);
+          state.sessions.set(trade, "london");
+          state.regimes.set(trade, result.bundle.regimePrior.label);
+        } else {
+          state.decisions.vetoed += 1;
+        }
+        deps.log.info("tick complete", {
+          symbol,
+          trigger: trigger.reason,
+          approved: result.decision.approve,
+        });
+        if (triggers.some((t) => t.reason === "rebalance")) state.lastRebalanceMs = nowMs;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        deps.log.error("tick failed", { symbol, err: msg });
+      }
+    }
+    state.lastTickedMs = nowMs;
+  }
+
+  // Daily flush at UTC midnight boundary.
+  const todayMs = utcDayMs(nowMs);
+  if (todayMs !== state.lastFlushDayMs) {
+    try {
+      const snapshot = deps.writer.buildSnapshot({
+        dayMs: state.lastFlushDayMs,
+        cumulativeTrades: state.cumulativeTrades,
+        sessions: state.sessions,
+        regimes: state.regimes,
+        decisions: state.decisions,
+        llmSpendUsd: deps.budget.spendUsd,
+      });
+      await deps.writer.flush(snapshot);
+      deps.log.info("daily metrics flushed", {
+        dayMs: state.lastFlushDayMs,
+        trades: state.cumulativeTrades.length,
+        spendUsd: deps.budget.spendUsd,
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      deps.log.error("daily flush failed", { err: msg });
+    }
+    state.lastFlushDayMs = todayMs;
+  }
+
+  return state;
+}
+
 export async function main(): Promise<void> {
   const cfg = readConfig();
   const log = new Logger({ base: { service: "paper-runner" } });
@@ -200,96 +329,22 @@ export async function main(): Promise<void> {
     paperOutDir: cfg.paperOutDir,
   });
 
-  const cumulativeTrades: Trade[] = [];
-  const sessions = new Map<Trade, SessionKey>();
-  const regimes = new Map<Trade, RegimeKey>();
-  const decisions = emptyDecisionCounters();
+  const deps: PaperRunnerDeps = {
+    broker,
+    cache,
+    llm,
+    budget,
+    writer,
+    log,
+    watchedSymbols: cfg.watchedSymbols,
+    consensusThreshold: defaultRiskConfig.agent.consensusThreshold,
+    buildGateContext: buildGateContextDefault,
+  };
 
-  let lastTickedMs = Date.now();
-  let lastRebalanceMs = Date.now();
-  let lastFlushDayMs = utcDayMs(lastTickedMs);
+  const state = initialState(Date.now());
 
   while (true) {
-    const now = Date.now();
-
-    if (budget.tripped) {
-      log.warn("budget tripped, skipping tick", { spendUsd: budget.spendUsd });
-    } else {
-      for (const symbol of cfg.watchedSymbols) {
-        try {
-          const candlesH1 = await broker.getCandles(symbol, "H1", 200);
-          const calendar = await cache.getCalendarWindow();
-          const triggers = detectTriggers({
-            nowMs: now,
-            lastTickedMs,
-            candlesByTf: { H1: candlesH1 },
-            upcomingEvents: calendar,
-            lastRebalanceMs,
-          });
-          if (triggers.length === 0) continue;
-
-          const account = await broker.getAccount();
-          const trigger = triggers[0];
-          if (!trigger) continue;
-          const result = await tick({
-            broker,
-            cache,
-            llm,
-            symbol,
-            ts: now,
-            trigger,
-            consensusThreshold: defaultRiskConfig.agent.consensusThreshold,
-            buildGateContext: () => buildGateContext(now, account, symbol),
-          });
-          decisions.ticks += 1;
-          if (result.decision.approve) {
-            decisions.approved += 1;
-            const trade = synthesizeTrade(now, result.bundle, result.decision);
-            cumulativeTrades.push(trade);
-            sessions.set(trade, "london");
-            regimes.set(trade, result.bundle.regimePrior.label);
-          } else {
-            decisions.vetoed += 1;
-          }
-          log.info("tick complete", {
-            symbol,
-            trigger: trigger.reason,
-            approved: result.decision.approve,
-          });
-          if (triggers.some((t) => t.reason === "rebalance")) lastRebalanceMs = now;
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e);
-          log.error("tick failed", { symbol, err: msg });
-        }
-      }
-      lastTickedMs = now;
-    }
-
-    // Daily flush at UTC midnight boundary.
-    const todayMs = utcDayMs(now);
-    if (todayMs !== lastFlushDayMs) {
-      try {
-        const snapshot = writer.buildSnapshot({
-          dayMs: lastFlushDayMs,
-          cumulativeTrades,
-          sessions,
-          regimes,
-          decisions,
-          llmSpendUsd: budget.spendUsd,
-        });
-        await writer.flush(snapshot);
-        log.info("daily metrics flushed", {
-          dayMs: lastFlushDayMs,
-          trades: cumulativeTrades.length,
-          spendUsd: budget.spendUsd,
-        });
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        log.error("daily flush failed", { err: msg });
-      }
-      lastFlushDayMs = todayMs;
-    }
-
+    await runIteration(deps, state, Date.now());
     await new Promise((r) => setTimeout(r, cfg.pollMs));
   }
 }

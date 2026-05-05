@@ -15,10 +15,13 @@ export interface FakeBrokerOptions {
   pipScale: (symbol: Symbol) => number;
   pipValuePerLot?: number;
   nowFn?: () => number;
+  /** Defaults to true — FakeBroker is paper unless explicitly overridden. */
+  isDemo?: boolean;
 }
 
 export class FakeBroker implements Broker {
-  private readonly opts: Required<FakeBrokerOptions>;
+  readonly isDemo: boolean;
+  private readonly opts: Required<Omit<FakeBrokerOptions, "isDemo">>;
   private readonly quotes = new Map<Symbol, { bid: number; ask: number; ts: number }>();
   private readonly candles = new Map<string, Candle[]>();
   private readonly positions = new Map<string, Position>();
@@ -32,6 +35,7 @@ export class FakeBroker implements Broker {
       nowFn: Date.now,
       ...opts,
     };
+    this.isDemo = opts.isDemo ?? true;
     this.balance = opts.startingBalance;
     this.equity = opts.startingBalance;
   }

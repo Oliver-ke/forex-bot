@@ -73,7 +73,8 @@ export async function main(): Promise<void> {
   const cfg = readConfig();
   const log = new Logger({ base: { service: "agent-runner" } });
 
-  const broker = new MT5Broker(createMT5Client({ host: cfg.mt5Host, port: cfg.mt5Port }));
+  const isDemo = process.env.MT5_DEMO === "1";
+  const broker = new MT5Broker(createMT5Client({ host: cfg.mt5Host, port: cfg.mt5Port }), isDemo);
   const cache = new RedisHotCache({ url: cfg.redisUrl, namespace: cfg.redisNamespace });
   await cache.connect();
   const llm = new AnthropicLlm({ apiKey: cfg.anthropicApiKey });

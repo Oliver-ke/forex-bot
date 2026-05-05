@@ -43,6 +43,8 @@ const QUOTE_TIMEFRAME_PREFERENCE: readonly Timeframe[] = [
 ];
 
 export class FixtureBroker implements Broker {
+  /** Replays are paper. */
+  readonly isDemo = true;
   private readonly clock: ReplayClock;
   private readonly bars: Map<string, readonly Candle[]>;
   private readonly spreadPips: number;

@@ -13,7 +13,7 @@ AI-driven forex trading system. See `prd/` for the design spec and per-plan impl
   - agents: `llm-provider`, `agents`, `graph`, `telemetry`
   - eval: `eval-core`, `eval-replay`, `eval-event-study`
 - `apps/` — runnable workers (`data-ingest`, `agent-runner`, `eval-replay`, `eval-event-study`, `paper-runner`).
-- `infra/` — IaC (future plan).
+- `infra/terraform/` — AWS Terraform IaC (Plan 6a). See `infra/terraform/README.md`.
 
 ## Local development
 

@@ -1,0 +1,61 @@
+name: infra
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "infra/terraform/**"
+      - ".github/workflows/infra.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "infra/terraform/**"
+      - ".github/workflows/infra.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        path:
+          - infra/terraform/bootstrap
+          - infra/terraform/modules/network
+          - infra/terraform/modules/data
+          - infra/terraform/modules/secrets
+          - infra/terraform/modules/ecr
+          - infra/terraform/modules/ci-oidc
+          - infra/terraform/envs/prod
+          - infra/terraform/envs/staging
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.10.5
+          terraform_wrapper: false
+      - name: Format check
+        run: terraform fmt -check -recursive
+        working-directory: ${{ matrix.path }}
+      - name: Init (no backend)
+        run: terraform init -backend=false
+        working-directory: ${{ matrix.path }}
+      - name: Validate
+        run: terraform validate
+        working-directory: ${{ matrix.path }}
+
+  tfsec:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: tfsec
+        uses: aquasecurity/tfsec-action@v1.0.3
+        with:
+          working_directory: infra/terraform
+          # v1 trade-offs (no KMS CMK, ElastiCache plaintext, MUTABLE ECR tags,
+          # wide SG egress, RDS deletion_protection off) are intentional and
+          # tracked for Plan 7 hardening. tfsec output is treated as advisory
+          # in v1; flip to soft_fail: false in Plan 7.
+          soft_fail: true

@@ -93,3 +93,79 @@ terraform destroy
 - **Secret values must be populated post-apply.** RDS will not accept connections from apps until `mt5Login` etc. are real (apps fail-fast on placeholder).
 - **`deletion_protection = false`** on RDS. Set to true via Plan 7 hardening.
 - **`branch_filter = "pull_request"`** on staging is permissive (any PR can deploy). Tighten via PR-author allowlist in Plan 7.
+
+## Sidecar deploy (Plan 6b)
+
+Adds the MT5 gRPC sidecar as an ECS Fargate service. Runs Wine + Python-on-Windows
++ portable MT5 inside one container. See
+`prd/specs/2026-05-06-forex-bot-sidecar-deploy-design.md` for full design.
+
+### Pre-conditions
+1. Plan 6a applied; both envs healthy.
+2. Secrets Manager blob populated with real MT5 creds:
+   ```bash
+   aws secretsmanager put-secret-value \
+     --secret-id forex-bot/staging/secrets \
+     --secret-string file://staging-secrets.json
+   ```
+   JSON shape:
+   ```json
+   {
+     "anthropicApiKey": "sk-ant-...",
+     "mt5Login":        "12345",
+     "mt5Server":       "ICMarketsSC-Demo",
+     "mt5Password":     "...",
+     "dbPassword":      "<keep value from terraform output>"
+   }
+   ```
+3. GitHub repo variable `AWS_ACCOUNT_ID` set under repo → Settings → Variables → Actions.
+
+### First TF apply
+```bash
+cd infra/terraform/envs/staging
+terraform init -upgrade
+terraform plan -out=tfplan
+terraform apply tfplan
+```
+The ECS service spawns immediately; the first task fails health (no image yet). **Expected.**
+
+### First image build
+```bash
+gh workflow run sidecar-image.yml --ref main
+```
+Approx 8–12 min on first build. Pushes `:<sha>` and `:latest` tags, then forces an ECS redeploy.
+
+### Verify
+```bash
+ENV=staging
+aws ecs describe-services \
+  --cluster forex-bot-$ENV-cluster \
+  --services forex-bot-$ENV-mt5-sidecar \
+  --query 'services[0].{running: runningCount, desired: desiredCount, primary: deployments[?status==`PRIMARY`].rolloutState | [0]}'
+# Expected: running=1, desired=1, primary=COMPLETED
+
+aws logs tail /forex-bot/$ENV/mt5-sidecar --since 5m
+# Expected log line: "mt5-sidecar listening on 0.0.0.0:50051"
+```
+
+### End-to-end gRPC smoke (operator)
+Run a temporary debug task in `app-sg` and `grpcurl` the sidecar's task IP:
+```bash
+TASK_IP=$(aws ecs describe-tasks \
+  --cluster forex-bot-$ENV-cluster \
+  --tasks $(aws ecs list-tasks --cluster forex-bot-$ENV-cluster --service-name forex-bot-$ENV-mt5-sidecar --query 'taskArns[0]' --output text) \
+  --query 'tasks[0].attachments[0].details[?name==`privateIPv4Address`].value | [0]' \
+  --output text)
+
+# from any task in app-sg:
+grpcurl -plaintext "$TASK_IP:50051" forex_bot.mt5.MT5/GetAccount
+# Expected: a real broker AccountResponse JSON
+```
+
+### Troubleshooting
+
+- **Local `docker build` on macOS fails at `wineboot --init` with `could not load kernel32.dll`**: known issue when building `linux/amd64` via QEMU emulation on darwin. Wine prefix init is unreliable under emulation. Fix: build on a native Linux x86_64 host (CI runner, EC2, Linux dev box). The `xauth` apt dep is required for `xvfb-run` and is already in the Dockerfile.
+- **Task fails to pull image**: check `forex-bot-$ENV-ci` role has `ecr:GetAuthorizationToken`; verify image tag exists in ECR.
+- **Task starts but health probe fails**: tail CloudWatch logs; common causes: bad `MT5_SERVER` value, broker server is in maintenance, MT5 portable binary couldn't reach broker (broker IP firewall on this AWS region).
+- **Reconnect loop is hot**: the broker is dropping mid-tick. Check broker's status page; verify your account isn't expired.
+- **`aws ecs execute-command` fails**: the Wine+Python-Win container may not have `amazon-ssm-agent`. Fall back to log tailing.

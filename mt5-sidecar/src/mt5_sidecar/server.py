@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import threading
 import time
 from concurrent import futures
 
 import grpc
+from grpc_health.v1 import health, health_pb2, health_pb2_grpc
 
 from .adapter import MT5Adapter
 from .generated import mt5_pb2, mt5_pb2_grpc
@@ -44,6 +46,33 @@ def _to_proto_position(p) -> mt5_pb2.Position:
         tp=p.tp,
         opened_at=p.opened_at,
     )
+
+
+def _build_health_servicer(
+    adapter: MT5Adapter, *, refresh_interval_s: float = 5.0
+) -> health.HealthServicer:
+    servicer = health.HealthServicer()
+    servicer.set("", health_pb2.HealthCheckResponse.SERVING)
+    servicer.set(
+        "forex_bot.mt5.MT5", health_pb2.HealthCheckResponse.SERVING
+    )
+
+    def _refresh() -> None:
+        while True:
+            ok = adapter.is_alive()
+            status = (
+                health_pb2.HealthCheckResponse.SERVING
+                if ok
+                else health_pb2.HealthCheckResponse.NOT_SERVING
+            )
+            servicer.set("", status)
+            servicer.set("forex_bot.mt5.MT5", status)
+            time.sleep(refresh_interval_s)
+
+    threading.Thread(
+        target=_refresh, name="mt5-health-refresh", daemon=True
+    ).start()
+    return servicer
 
 
 class MT5Service(mt5_pb2_grpc.MT5Servicer):
@@ -118,5 +147,7 @@ def build_server(
 ) -> grpc.Server:
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=8))
     mt5_pb2_grpc.add_MT5Servicer_to_server(MT5Service(adapter), server)
+    health_servicer = _build_health_servicer(adapter)
+    health_pb2_grpc.add_HealthServicer_to_server(health_servicer, server)
     server.add_insecure_port(f"{host}:{port}")
     return server

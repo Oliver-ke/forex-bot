@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 import signal
+import threading
+import time
 from typing import NoReturn
 
 from .adapter import MT5Adapter
@@ -32,6 +34,34 @@ def main() -> NoReturn:
     port = int(os.environ.get("MT5_SIDECAR_PORT", "50051"))
     server = build_server(adapter, host=host, port=port)
     server.start()
+
+    def _watchdog() -> None:
+        consecutive_failures = 0
+        while True:
+            time.sleep(30.0)
+            if adapter.is_alive():
+                consecutive_failures = 0
+                continue
+            consecutive_failures += 1
+            print(
+                f"mt5-sidecar: liveness probe failed (consecutive={consecutive_failures})",
+                flush=True,
+            )
+            if consecutive_failures == 1:
+                try:
+                    adapter.reconnect_or_die(max_attempts=1)
+                    consecutive_failures = 0
+                    continue
+                except Exception as exc:
+                    print(f"mt5-sidecar: reconnect attempt failed: {exc}", flush=True)
+            if consecutive_failures >= 2:
+                print(
+                    "mt5-sidecar: liveness probe failed twice; exiting for ECS restart",
+                    flush=True,
+                )
+                os._exit(1)
+
+    threading.Thread(target=_watchdog, name="mt5-watchdog", daemon=True).start()
 
     def _shutdown(signum, frame):  # noqa: ANN001
         server.stop(grace=3)

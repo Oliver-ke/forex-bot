@@ -12,7 +12,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 RUN dpkg --add-architecture i386 && \
     apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates curl gnupg xvfb \
+      ca-certificates curl gnupg xvfb xauth \
       libfreetype6 libgnutls30 \
     && mkdir -p /etc/apt/keyrings \
     && curl -fsSL https://dl.winehq.org/wine-builds/winehq.key \

@@ -1,27 +1,75 @@
-# MT5 sidecar — Linux + Wine + portable MT5 terminal.
-# The MT5 terminal binary is installed at deploy time via a mounted volume so we
-# don't ship it in this image. The image only carries Python + the sidecar code.
+# MT5 sidecar — Linux + Wine 9 stable + Python-on-Windows + portable MT5 terminal.
+# Sidecar gRPC server runs INSIDE Wine via `xvfb-run wine python -m mt5_sidecar`.
+# See prd/specs/2026-05-06-forex-bot-sidecar-deploy-design.md §4.
 
-FROM python:3.12-slim AS base
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+FROM debian:bookworm-slim AS wine-base
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates curl gnupg \
+ENV DEBIAN_FRONTEND=noninteractive \
+    WINEPREFIX=/wine \
+    WINEARCH=win64 \
+    WINEDEBUG=-all \
+    DISPLAY=:99
+
+RUN dpkg --add-architecture i386 && \
+    apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates curl gnupg xvfb \
+      libfreetype6 libgnutls30 \
+    && mkdir -p /etc/apt/keyrings \
+    && curl -fsSL https://dl.winehq.org/wine-builds/winehq.key \
+       | gpg --dearmor -o /etc/apt/keyrings/winehq.gpg \
+    && echo "deb [signed-by=/etc/apt/keyrings/winehq.gpg] https://dl.winehq.org/wine-builds/debian/ bookworm main" \
+       > /etc/apt/sources.list.d/winehq.list \
+    && apt-get update && apt-get install -y --no-install-recommends winehq-stable \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=ghcr.io/astral-sh/uv:0.4.30 /uv /usr/local/bin/uv
+RUN xvfb-run wine wineboot --init && xvfb-run wineserver -w
+
+
+FROM wine-base AS python-win
+
+ARG PYTHON_VERSION=3.11.9
+RUN curl -fsSL "https://www.python.org/ftp/python/${PYTHON_VERSION}/python-${PYTHON_VERSION}-amd64.exe" -o /tmp/py.exe && \
+    xvfb-run wine /tmp/py.exe /quiet InstallAllUsers=1 PrependPath=1 Include_test=0 && \
+    rm /tmp/py.exe && xvfb-run wineserver -w
+
+RUN xvfb-run wine python -m pip install --no-cache-dir \
+      MetaTrader5==5.0.45 \
+      grpcio==1.66.0 \
+      grpcio-health-checking==1.66.0 \
+      grpcio-tools==1.66.0 \
+      protobuf==5.28.0
+
+
+FROM python-win AS mt5
+
+RUN curl -fsSL https://download.mql5.com/cdn/web/metaquotes.software.corp/mt5/mt5setup.exe -o /tmp/mt5.exe && \
+    xvfb-run wine /tmp/mt5.exe /portable /auto && \
+    rm /tmp/mt5.exe && xvfb-run wineserver -w
+
+
+FROM mt5 AS final
 
 WORKDIR /app
-COPY pyproject.toml ./
-COPY src ./src
+COPY mt5-sidecar/pyproject.toml mt5-sidecar/uv.lock /app/
+COPY mt5-sidecar/src /app/src
+COPY proto /proto
 
-# NOTE: The `[mt5]` extra (MetaTrader5 package) is Windows-only and is installed
-# at deploy time via Wine onto the running container. The base image carries
-# only the Linux-compatible runtime deps; sidecar startup will fail-fast if the
-# MetaTrader5 package isn't reachable at runtime.
-RUN uv pip install --system -e .
+ARG GRPC_HEALTH_PROBE_VERSION=v0.4.25
+RUN curl -fsSL "https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-amd64" \
+      -o /usr/local/bin/grpc_health_probe && chmod +x /usr/local/bin/grpc_health_probe
+
+# Generate proto stubs into the Wine-side site-packages so the sidecar can import them.
+RUN xvfb-run wine python -m grpc_tools.protoc \
+      -I/proto \
+      --python_out=/app/src/mt5_sidecar/generated \
+      --grpc_python_out=/app/src/mt5_sidecar/generated \
+      /proto/mt5.proto
 
 EXPOSE 50051
-ENTRYPOINT ["mt5-sidecar"]
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
+  CMD grpc_health_probe -addr=:50051 || exit 1
+
+COPY mt5-sidecar/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]

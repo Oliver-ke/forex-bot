@@ -118,7 +118,7 @@ Each implementation plan in `prd/plans/` produces working, testable software on 
 | 4 — Agent Graph | done | LangGraph, agents, agent-runner |
 | 5 — Eval Harness | done | replay, event-study, paper |
 | 6a — IaC base | done | VPC, RDS, Redis, DynamoDB, Secrets, ECR, GH OIDC |
-| 6b — Sidecar deploy | pending | Wine + portable MT5 + ECS task |
+| 6b — Sidecar deploy | done | Wine + portable MT5 + ECS task |
 | 6c — App deploy | pending | ECS clusters/services for agent-runner, paper-runner, ingest |
 | 6d — Observability | pending | CW metrics, SNS alerts, dashboards |
 | 6e — ops-cli | pending | kill-switch, reconcile, RAG backfill |

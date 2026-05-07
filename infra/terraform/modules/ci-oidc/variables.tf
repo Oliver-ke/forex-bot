@@ -14,9 +14,14 @@ variable "github_repo" {
   default     = "forex-bot"
 }
 
-variable "branch_filter" {
-  description = "GitHub Actions sub-claim filter (e.g. 'ref:refs/heads/main' or 'pull_request')"
-  type        = string
+variable "branch_filters" {
+  description = "List of GitHub Actions sub-claim suffixes (e.g. ['ref:refs/heads/main', 'pull_request']). At least one entry required."
+  type        = list(string)
+
+  validation {
+    condition     = length(var.branch_filters) > 0
+    error_message = "branch_filters must contain at least one entry."
+  }
 }
 
 variable "oidc_provider_arn" {

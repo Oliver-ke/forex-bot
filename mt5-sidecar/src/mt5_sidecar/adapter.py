@@ -77,13 +77,37 @@ class Position:
 class MT5Adapter:
     def __init__(self, sdk: MT5SDK):
         self._sdk = sdk
+        self._init_kwargs: dict[str, Any] = {}
 
     def initialize(self, **kwargs: Any) -> None:
+        self._init_kwargs = dict(kwargs)
         if not self._sdk.initialize(**kwargs):
             raise RuntimeError("MT5 initialize() failed")
 
     def shutdown(self) -> None:
-        self._sdk.shutdown()
+        try:
+            self._sdk.shutdown()
+        except Exception:
+            pass
+
+    def is_alive(self) -> bool:
+        try:
+            return self._sdk.account_info() is not None
+        except Exception:
+            return False
+
+    def reconnect_or_die(self, *, max_attempts: int = 1) -> None:
+        """Retry MT5 initialize after a drop. On exhaustion, raise so the
+        process exits and ECS replaces the task."""
+        for _ in range(max_attempts):
+            try:
+                self._sdk.shutdown()
+            except Exception:
+                pass
+            if self._sdk.initialize(**self._init_kwargs):
+                return
+            time.sleep(2)
+        raise RuntimeError("MT5 reconnect failed; exiting for ECS restart")
 
     def get_quote(self, symbol: str) -> Tick:
         info = self._sdk.symbol_info_tick(symbol)

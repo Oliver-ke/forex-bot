@@ -69,8 +69,28 @@ module "ci_oidc" {
   env               = var.env
   github_org        = var.github_org
   github_repo       = var.github_repo
-  branch_filter     = "ref:refs/heads/main"
+  branch_filters    = ["ref:refs/heads/main"]
   oidc_provider_arn = var.oidc_provider_arn
   ecr_repo_arns     = values(module.ecr.repo_arns)
   common_tags       = local.common_tags
+}
+
+module "cluster" {
+  source                  = "../../modules/cluster"
+  env                     = var.env
+  secrets_read_policy_arn = module.secrets.read_policy_arn
+  common_tags             = local.common_tags
+}
+
+module "sidecar" {
+  source                  = "../../modules/sidecar"
+  env                     = var.env
+  cluster_arn             = module.cluster.cluster_arn
+  task_execution_role_arn = module.cluster.task_execution_role_arn
+  secrets_read_policy_arn = module.secrets.read_policy_arn
+  secret_arn              = module.secrets.secret_arn
+  vpc_subnet_ids          = module.network.public_subnet_ids
+  app_sg_id               = module.network.app_sg_id
+  ecr_repo_url            = module.ecr.repo_urls["mt5-sidecar"]
+  common_tags             = local.common_tags
 }

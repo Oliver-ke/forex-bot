@@ -5,11 +5,15 @@ on:
     branches: [main]
     paths:
       - "infra/terraform/**"
+      - "mt5-sidecar/**"
+      - "proto/mt5.proto"
       - ".github/workflows/infra.yml"
   pull_request:
     branches: [main]
     paths:
       - "infra/terraform/**"
+      - "mt5-sidecar/**"
+      - "proto/mt5.proto"
       - ".github/workflows/infra.yml"
 
 permissions:
@@ -59,3 +63,18 @@ jobs:
           # tracked for Plan 7 hardening. tfsec output is treated as advisory
           # in v1; flip to soft_fail: false in Plan 7.
           soft_fail: true
+
+  sidecar-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build (no push) — smoke
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: mt5-sidecar/Dockerfile
+          platforms: linux/amd64
+          push: false
+          cache-from: type=gha,scope=mt5-sidecar-pr
+          cache-to: type=gha,mode=max,scope=mt5-sidecar-pr

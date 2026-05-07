@@ -25,3 +25,15 @@ output "ecr_repo_urls" {
 output "ci_role_arn" {
   value = module.ci_oidc.ci_role_arn
 }
+
+output "ecs_cluster_name" {
+  value = module.cluster.cluster_name
+}
+
+output "sidecar_service_name" {
+  value = module.sidecar.service_name
+}
+
+output "sidecar_log_group_name" {
+  value = module.sidecar.log_group_name
+}

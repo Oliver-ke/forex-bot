@@ -13,7 +13,7 @@ AI-driven forex trading system. See `prd/` for the design spec and per-plan impl
   - agents: `llm-provider`, `agents`, `graph`, `telemetry`
   - eval: `eval-core`, `eval-replay`, `eval-event-study`
 - `apps/` — runnable workers (`data-ingest`, `agent-runner`, `eval-replay`, `eval-event-study`, `paper-runner`).
-- `infra/` — IaC (future plan).
+- `infra/terraform/` — AWS Terraform IaC (Plan 6a). See `infra/terraform/README.md`.
 
 ## Local development
 
@@ -117,5 +117,9 @@ Each implementation plan in `prd/plans/` produces working, testable software on 
 | 3 — Data Layer | done | adapters, memory, cache, data-ingest |
 | 4 — Agent Graph | done | LangGraph, agents, agent-runner |
 | 5 — Eval Harness | done | replay, event-study, paper |
-| 6 — Infra & Ops | pending | IaC, ops-cli, observability |
+| 6a — IaC base | done | VPC, RDS, Redis, DynamoDB, Secrets, ECR, GH OIDC |
+| 6b — Sidecar deploy | pending | Wine + portable MT5 + ECS task |
+| 6c — App deploy | pending | ECS clusters/services for agent-runner, paper-runner, ingest |
+| 6d — Observability | pending | CW metrics, SNS alerts, dashboards |
+| 6e — ops-cli | pending | kill-switch, reconcile, RAG backfill |
 | 7 — Go-Live Controls | pending | canary, chaos drills, gates |

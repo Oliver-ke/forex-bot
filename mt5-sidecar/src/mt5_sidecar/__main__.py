@@ -19,7 +19,15 @@ def main() -> NoReturn:
         ) from e
 
     adapter = MT5Adapter(mt5)
-    adapter.initialize()
+
+    login = os.environ.get("MT5_LOGIN")
+    server_name = os.environ.get("MT5_SERVER")
+    password = os.environ.get("MT5_PASSWORD")
+    if login and server_name and password:
+        adapter.initialize(login=int(login), server=server_name, password=password)
+    else:
+        adapter.initialize()
+
     host = os.environ.get("MT5_SIDECAR_HOST", "0.0.0.0")
     port = int(os.environ.get("MT5_SIDECAR_PORT", "50051"))
     server = build_server(adapter, host=host, port=port)

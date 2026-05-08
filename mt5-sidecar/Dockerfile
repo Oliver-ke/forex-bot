@@ -2,7 +2,7 @@
 # Sidecar gRPC server runs INSIDE Wine via `xvfb-run wine python -m mt5_sidecar`.
 # See prd/specs/2026-05-06-forex-bot-sidecar-deploy-design.md §4.
 
-FROM debian:bookworm-slim AS wine-base
+FROM ubuntu:24.04 AS wine-base
 
 ENV DEBIAN_FRONTEND=noninteractive \
     WINEPREFIX=/wine \
@@ -10,14 +10,17 @@ ENV DEBIAN_FRONTEND=noninteractive \
     WINEDEBUG=-all \
     DISPLAY=:99
 
+# Ubuntu 24.04 (noble) + winehq-stable. Debian bookworm's winehq-stable has a
+# known regression where wineboot --init fails to load kernel32.dll in minimal
+# containers (status c0000135). Ubuntu's package is battle-tested.
 RUN dpkg --add-architecture i386 && \
     apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl gnupg xvfb xauth \
-      libfreetype6 libgnutls30 \
+      libfreetype6 libgnutls30 libldap2 \
     && mkdir -p /etc/apt/keyrings \
     && curl -fsSL https://dl.winehq.org/wine-builds/winehq.key \
        | gpg --dearmor -o /etc/apt/keyrings/winehq.gpg \
-    && echo "deb [signed-by=/etc/apt/keyrings/winehq.gpg] https://dl.winehq.org/wine-builds/debian/ bookworm main" \
+    && echo "deb [signed-by=/etc/apt/keyrings/winehq.gpg] https://dl.winehq.org/wine-builds/ubuntu/ noble main" \
        > /etc/apt/sources.list.d/winehq.list \
     && apt-get update && apt-get install -y --no-install-recommends winehq-stable \
     && rm -rf /var/lib/apt/lists/*

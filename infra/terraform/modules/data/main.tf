@@ -95,3 +95,55 @@ resource "aws_dynamodb_table" "kill_switch" {
 
   tags = merge(var.common_tags, { Name = "${local.name_prefix}-kill-switch" })
 }
+
+data "aws_iam_policy_document" "journal_rw" {
+  statement {
+    sid    = "TradeJournalRW"
+    effect = "Allow"
+    actions = [
+      "dynamodb:GetItem",
+      "dynamodb:PutItem",
+      "dynamodb:UpdateItem",
+      "dynamodb:DeleteItem",
+      "dynamodb:Query",
+      "dynamodb:Scan",
+      "dynamodb:BatchGetItem",
+      "dynamodb:BatchWriteItem",
+    ]
+    resources = [
+      aws_dynamodb_table.trade_journal.arn,
+      "${aws_dynamodb_table.trade_journal.arn}/index/*",
+    ]
+  }
+}
+
+resource "aws_iam_policy" "journal_rw" {
+  name        = "${local.name_prefix}-trade-journal-rw"
+  description = "Read/write on trade-journal DynamoDB table"
+  policy      = data.aws_iam_policy_document.journal_rw.json
+}
+
+data "aws_iam_policy_document" "killswitch_rw" {
+  statement {
+    sid    = "KillSwitchRW"
+    effect = "Allow"
+    actions = [
+      "dynamodb:GetItem",
+      "dynamodb:PutItem",
+      "dynamodb:UpdateItem",
+      "dynamodb:DeleteItem",
+      "dynamodb:Query",
+      "dynamodb:Scan",
+    ]
+    resources = [
+      aws_dynamodb_table.kill_switch.arn,
+      "${aws_dynamodb_table.kill_switch.arn}/index/*",
+    ]
+  }
+}
+
+resource "aws_iam_policy" "killswitch_rw" {
+  name        = "${local.name_prefix}-killswitch-rw"
+  description = "Read/write on kill-switch DynamoDB table"
+  policy      = data.aws_iam_policy_document.killswitch_rw.json
+}

@@ -29,3 +29,11 @@ output "killswitch_table_name" {
 output "killswitch_table_arn" {
   value = aws_dynamodb_table.kill_switch.arn
 }
+
+output "journal_rw_policy_arn" {
+  value = aws_iam_policy.journal_rw.arn
+}
+
+output "killswitch_rw_policy_arn" {
+  value = aws_iam_policy.killswitch_rw.arn
+}

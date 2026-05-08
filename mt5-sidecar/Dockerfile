@@ -40,14 +40,19 @@ RUN xvfb-run wine python -m pip install --no-cache-dir \
       protobuf==5.28.0
 
 
-FROM python-win AS mt5
+FROM python-win AS final
 
-RUN curl -fsSL https://download.mql5.com/cdn/web/metaquotes.software.corp/mt5/mt5setup.exe -o /tmp/mt5.exe && \
-    xvfb-run wine /tmp/mt5.exe /portable /auto && \
-    rm /tmp/mt5.exe && xvfb-run wineserver -w
-
-
-FROM mt5 AS final
+# NOTE: MT5 terminal binary is NOT installed at image build time. MetaQuotes'
+# mt5setup.exe has no documented silent-install flags and shows a GUI dialog
+# Wine cannot dismiss in headless containers. The MT5 portable folder must be
+# mounted into /wine/drive_c/MT5 at deploy time (e.g. via an init container,
+# EFS volume, or a pre-built prefix tarball staged on S3 and downloaded at
+# task start).
+#
+# Until that wiring lands (Plan 6e ops-cli `forex-bot mt5 stage`), the
+# sidecar will fail-fast at startup with "MetaTrader5 package: terminal not
+# found" — that's the expected v1 behavior. The image carries Wine + Python +
+# MetaTrader5 pkg; everything else is broker-side staging.
 
 WORKDIR /app
 COPY mt5-sidecar/pyproject.toml mt5-sidecar/uv.lock /app/

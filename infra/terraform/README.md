@@ -169,3 +169,65 @@ grpcurl -plaintext "$TASK_IP:50051" forex_bot.mt5.MT5/GetAccount
 - **Task starts but health probe fails**: tail CloudWatch logs; common causes: bad `MT5_SERVER` value, broker server is in maintenance, MT5 portable binary couldn't reach broker (broker IP firewall on this AWS region).
 - **Reconnect loop is hot**: the broker is dropping mid-tick. Check broker's status page; verify your account isn't expired.
 - **`aws ecs execute-command` fails**: the Wine+Python-Win container may not have `amazon-ssm-agent`. Fall back to log tailing.
+
+## App deploy (Plan 6c)
+
+Deploys `agent-runner` (prod-only) and `paper-runner` (staging-only) as ECS Fargate services. Apps reach the sidecar via Service Connect at `mt5-sidecar:50051`. See `prd/specs/2026-05-08-forex-bot-app-deploy-design.md` for full design.
+
+### Pre-conditions
+1. Plan 6a + 6b applied; sidecar service `RUNNING + HEALTHY` per env.
+2. Secrets blob populated with real Anthropic key and MT5 creds.
+3. GitHub repo variable `AWS_ACCOUNT_ID` set under repo → Settings → Variables → Actions.
+
+### First TF apply per env
+
+```bash
+cd infra/terraform/envs/<env>
+terraform init -upgrade
+terraform plan -out=tfplan
+terraform apply tfplan
+```
+
+The relevant app service spawns immediately (`agent_runner` in prod, `paper_runner` in staging). The first task fails health (no image yet). **Expected.**
+
+### First image build
+
+```bash
+gh workflow run apps-image.yml --ref main
+```
+
+Approx 5–8 min on first build (Node base + pnpm install dominate; subsequent builds <1 min via GHA cache).
+
+### Verify
+```bash
+ENV=prod        # or staging
+APP=agent-runner   # or paper-runner
+
+aws ecs describe-services --cluster forex-bot-$ENV-cluster --services forex-bot-$ENV-$APP \
+  --query 'services[0].{running: runningCount, primary: deployments[?status==`PRIMARY`].rolloutState | [0]}'
+# Expected: running=1, primary=COMPLETED
+
+aws logs tail /forex-bot/$ENV/$APP --since 5m
+# Expected: app startup log line (e.g. "agent-runner started", "paper-runner started")
+```
+
+### End-to-end smoke (Service Connect resolution)
+
+```bash
+TASK_ARN=$(aws ecs list-tasks --cluster forex-bot-$ENV-cluster --service-name forex-bot-$ENV-$APP --query 'taskArns[0]' --output text)
+aws ecs execute-command \
+  --cluster forex-bot-$ENV-cluster --task "$TASK_ARN" --container "$APP" \
+  --interactive \
+  --command "node -e \"const net = require('net'); const s = net.connect(50051, 'mt5-sidecar', () => { console.log('OK'); s.end(); }); s.on('error', e => { console.error('FAIL', e.message); process.exit(1); });\""
+# Expected: OK
+```
+
+### Troubleshooting
+
+- **Task starts but logs show `Cannot resolve mt5-sidecar`**: Service Connect namespace mis-attached. Verify `aws ecs describe-services` shows non-empty `serviceConnectConfiguration.namespace`.
+- **Task starts, sidecar dial succeeds, but app errors `MT5 initialize() failed`**: sidecar's MT5 creds are wrong (fix in Secrets Manager).
+- **Image pull denied**: check `forex-bot-$ENV-ci` role's ECR scope includes the app's repo ARN.
+- **DynamoDB `AccessDeniedException` from app**: verify `journal_rw_policy_arn` + `killswitch_rw_policy_arn` are attached to the task role:
+  ```bash
+  aws iam list-attached-role-policies --role-name forex-bot-$ENV-$APP-task
+  ```

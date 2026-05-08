@@ -7,6 +7,12 @@ on:
       - "infra/terraform/**"
       - "mt5-sidecar/**"
       - "proto/mt5.proto"
+      - "apps/agent-runner/**"
+      - "apps/paper-runner/**"
+      - "packages/**"
+      - "pnpm-lock.yaml"
+      - "package.json"
+      - "tsconfig.base.json"
       - ".github/workflows/infra.yml"
   pull_request:
     branches: [main]
@@ -14,6 +20,12 @@ on:
       - "infra/terraform/**"
       - "mt5-sidecar/**"
       - "proto/mt5.proto"
+      - "apps/agent-runner/**"
+      - "apps/paper-runner/**"
+      - "packages/**"
+      - "pnpm-lock.yaml"
+      - "package.json"
+      - "tsconfig.base.json"
       - ".github/workflows/infra.yml"
 
 permissions:
@@ -32,6 +44,9 @@ jobs:
           - infra/terraform/modules/secrets
           - infra/terraform/modules/ecr
           - infra/terraform/modules/ci-oidc
+          - infra/terraform/modules/cluster
+          - infra/terraform/modules/sidecar
+          - infra/terraform/modules/app
           - infra/terraform/envs/prod
           - infra/terraform/envs/staging
     steps:
@@ -78,3 +93,22 @@ jobs:
           push: false
           cache-from: type=gha,scope=mt5-sidecar-pr
           cache-to: type=gha,mode=max,scope=mt5-sidecar-pr
+
+  app-build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [agent-runner, paper-runner]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build (no push) — smoke
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/${{ matrix.app }}/Dockerfile
+          platforms: linux/amd64
+          push: false
+          cache-from: type=gha,scope=${{ matrix.app }}-pr
+          cache-to: type=gha,mode=max,scope=${{ matrix.app }}-pr

@@ -12,11 +12,11 @@ resource "aws_db_parameter_group" "pg" {
   name   = "${local.name_prefix}-pg16"
   family = "postgres16"
 
-  parameter {
-    name         = "shared_preload_libraries"
-    value        = "pgvector"
-    apply_method = "pending-reboot"
-  }
+  # pgvector is NOT a shared_preload_libraries member on RDS — it is enabled
+  # at runtime via `CREATE EXTENSION vector;` against the target database.
+  # Operator step (one-time per env, post-apply):
+  #   psql "<rds-endpoint>" -U forexbot -d forexbot -c 'CREATE EXTENSION IF NOT EXISTS vector;'
+  # Parameter group is kept as a placeholder for future tuning.
 
   tags = merge(var.common_tags, { Name = "${local.name_prefix}-pg16" })
 }

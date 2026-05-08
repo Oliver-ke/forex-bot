@@ -10,25 +10,16 @@ ENV DEBIAN_FRONTEND=noninteractive \
     WINEDEBUG=-all \
     DISPLAY=:99
 
-# Ubuntu 24.04 (noble) + Wine 9.0 LTS. Wine 11 (current winehq-stable) has a
-# regression where wineboot --init fails to load kernel32.dll in minimal
-# containers (status c0000135). Wine 9 is the previous LTS, known-good for
-# headless container init.
-ARG WINE_VERSION=9.0.0.0~noble-1
+# Ubuntu 24.04 (noble) + distro Wine 9.0. WineHQ's winehq-stable package is
+# Wine 11 which has a regression where wineboot --init fails to load
+# kernel32.dll in minimal containers (status c0000135). Older Wine versions
+# are pruned from WineHQ's noble repo. Ubuntu noble ships wine 9.0~repack in
+# universe — battle-tested for container use.
 RUN dpkg --add-architecture i386 && \
     apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl gnupg xvfb xauth \
+      wine wine64 wine32 \
       libfreetype6 libgnutls30 libldap2 \
-    && mkdir -p /etc/apt/keyrings \
-    && curl -fsSL https://dl.winehq.org/wine-builds/winehq.key \
-       | gpg --dearmor -o /etc/apt/keyrings/winehq.gpg \
-    && echo "deb [signed-by=/etc/apt/keyrings/winehq.gpg] https://dl.winehq.org/wine-builds/ubuntu/ noble main" \
-       > /etc/apt/sources.list.d/winehq.list \
-    && apt-get update && apt-get install -y --no-install-recommends \
-       winehq-stable=${WINE_VERSION} \
-       wine-stable=${WINE_VERSION} \
-       wine-stable-amd64=${WINE_VERSION} \
-       wine-stable-i386=${WINE_VERSION} \
     && rm -rf /var/lib/apt/lists/*
 
 RUN xvfb-run wine wineboot --init && xvfb-run wineserver -w

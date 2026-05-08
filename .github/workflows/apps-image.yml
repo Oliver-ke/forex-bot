@@ -1,0 +1,97 @@
+name: apps-image
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/agent-runner/**"
+      - "apps/paper-runner/**"
+      - "packages/**"
+      - "pnpm-lock.yaml"
+      - "package.json"
+      - "tsconfig.base.json"
+      - ".github/workflows/apps-image.yml"
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  agent-runner:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure AWS via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/forex-bot-prod-ci
+          aws-region: eu-west-2
+      - name: Login to ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - uses: docker/setup-buildx-action@v3
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/agent-runner/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/forex-bot/prod/agent-runner:${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/forex-bot/prod/agent-runner:latest
+          cache-from: type=gha,scope=agent-runner
+          cache-to: type=gha,mode=max,scope=agent-runner
+      - name: Force ECS redeploy
+        run: |
+          aws ecs update-service \
+            --cluster forex-bot-prod-cluster \
+            --service forex-bot-prod-agent-runner \
+            --force-new-deployment \
+            --region eu-west-2
+      - name: Wait for stable
+        run: |
+          aws ecs wait services-stable \
+            --cluster forex-bot-prod-cluster \
+            --services forex-bot-prod-agent-runner \
+            --region eu-west-2
+
+  paper-runner:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure AWS via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/forex-bot-staging-ci
+          aws-region: eu-west-2
+      - name: Login to ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - uses: docker/setup-buildx-action@v3
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/paper-runner/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/forex-bot/staging/paper-runner:${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/forex-bot/staging/paper-runner:latest
+          cache-from: type=gha,scope=paper-runner
+          cache-to: type=gha,mode=max,scope=paper-runner
+      - name: Force ECS redeploy
+        run: |
+          aws ecs update-service \
+            --cluster forex-bot-staging-cluster \
+            --service forex-bot-staging-paper-runner \
+            --force-new-deployment \
+            --region eu-west-2
+      - name: Wait for stable
+        run: |
+          aws ecs wait services-stable \
+            --cluster forex-bot-staging-cluster \
+            --services forex-bot-staging-paper-runner \
+            --region eu-west-2

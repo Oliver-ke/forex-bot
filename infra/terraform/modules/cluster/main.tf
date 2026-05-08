@@ -10,6 +10,10 @@ resource "aws_ecs_cluster" "main" {
     value = "enabled"
   }
 
+  service_connect_defaults {
+    namespace = aws_service_discovery_http_namespace.main.arn
+  }
+
   tags = merge(var.common_tags, { Name = "${local.name_prefix}-cluster" })
 }
 
@@ -22,6 +26,12 @@ resource "aws_ecs_cluster_capacity_providers" "main" {
     weight            = 1
     base              = 0
   }
+}
+
+resource "aws_service_discovery_http_namespace" "main" {
+  name        = "forex-bot-${var.env}.local"
+  description = "Service Connect namespace for forex-bot-${var.env}"
+  tags        = merge(var.common_tags, { Name = "${local.name_prefix}-sc-namespace" })
 }
 
 data "aws_iam_policy_document" "task_execution_trust" {

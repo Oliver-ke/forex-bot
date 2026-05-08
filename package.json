@@ -4,7 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "packageManager": "pnpm@9.12.0",
-  "engines": { "node": ">=20.11" },
+  "engines": {
+    "node": ">=20.11"
+  },
   "scripts": {
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
@@ -16,9 +18,10 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.0",
-    "typescript": "^5.5.0",
-    "vitest": "^2.1.0",
+    "@vitest/coverage-v8": "^2.1.0",
     "fast-check": "^3.22.0",
-    "@vitest/coverage-v8": "^2.1.0"
+    "tsx": "^4",
+    "typescript": "^5.5.0",
+    "vitest": "^2.1.0"
   }
 }

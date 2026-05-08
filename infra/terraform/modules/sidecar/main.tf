@@ -57,6 +57,7 @@ resource "aws_ecs_task_definition" "sidecar" {
         {
           containerPort = 50051
           protocol      = "tcp"
+          name          = "grpc"
         }
       ]
 
@@ -100,6 +101,22 @@ resource "aws_ecs_service" "sidecar" {
     subnets          = var.vpc_subnet_ids
     security_groups  = [var.app_sg_id]
     assign_public_ip = true
+  }
+
+  dynamic "service_connect_configuration" {
+    for_each = var.service_connect_namespace_arn == null ? [] : [1]
+    content {
+      enabled   = true
+      namespace = var.service_connect_namespace_arn
+      service {
+        port_name      = "grpc"
+        discovery_name = "mt5-sidecar"
+        client_alias {
+          port     = 50051
+          dns_name = "mt5-sidecar"
+        }
+      }
+    }
   }
 
   lifecycle {

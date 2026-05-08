@@ -83,14 +83,54 @@ module "cluster" {
 }
 
 module "sidecar" {
-  source                  = "../../modules/sidecar"
-  env                     = var.env
-  cluster_arn             = module.cluster.cluster_arn
-  task_execution_role_arn = module.cluster.task_execution_role_arn
-  secrets_read_policy_arn = module.secrets.read_policy_arn
-  secret_arn              = module.secrets.secret_arn
-  vpc_subnet_ids          = module.network.public_subnet_ids
-  app_sg_id               = module.network.app_sg_id
-  ecr_repo_url            = module.ecr.repo_urls["mt5-sidecar"]
-  common_tags             = local.common_tags
+  source                        = "../../modules/sidecar"
+  env                           = var.env
+  cluster_arn                   = module.cluster.cluster_arn
+  task_execution_role_arn       = module.cluster.task_execution_role_arn
+  service_connect_namespace_arn = module.cluster.service_connect_namespace_arn
+  secrets_read_policy_arn       = module.secrets.read_policy_arn
+  secret_arn                    = module.secrets.secret_arn
+  vpc_subnet_ids                = module.network.public_subnet_ids
+  app_sg_id                     = module.network.app_sg_id
+  ecr_repo_url                  = module.ecr.repo_urls["mt5-sidecar"]
+  common_tags                   = local.common_tags
+}
+
+module "paper_runner" {
+  source                        = "../../modules/app"
+  env                           = var.env
+  app_name                      = "paper-runner"
+  cluster_arn                   = module.cluster.cluster_arn
+  task_execution_role_arn       = module.cluster.task_execution_role_arn
+  service_connect_namespace_arn = module.cluster.service_connect_namespace_arn
+  vpc_subnet_ids                = module.network.public_subnet_ids
+  app_sg_id                     = module.network.app_sg_id
+  ecr_repo_url                  = module.ecr.repo_urls["paper-runner"]
+  cpu                           = "512"
+  memory                        = "1024"
+  secret_arn                    = module.secrets.secret_arn
+  secrets_read_policy_arn       = module.secrets.read_policy_arn
+  secret_keys = [
+    { env_name = "ANTHROPIC_API_KEY", json_key = "anthropicApiKey" },
+  ]
+  env_vars = {
+    MT5_HOST         = "mt5-sidecar"
+    MT5_PORT         = "50051"
+    MT5_DEMO         = "1"
+    PAPER_MODE       = "1"
+    PAPER_BUDGET_USD = "50"
+    PAPER_OUT_DIR    = "/tmp/paper-out"
+    REDIS_URL        = "redis://${module.data.redis_endpoint}:${module.data.redis_port}"
+    REDIS_NAMESPACE  = "forex-bot"
+    WATCHED_SYMBOLS  = "EURUSD,USDJPY"
+    POLL_MS          = "60000"
+    JOURNAL_TABLE    = module.data.journal_table_name
+    KILLSWITCH_TABLE = module.data.killswitch_table_name
+    AWS_REGION       = "eu-west-2"
+  }
+  extra_iam_policy_arns = [
+    module.data.journal_rw_policy_arn,
+    module.data.killswitch_rw_policy_arn,
+  ]
+  common_tags = local.common_tags
 }

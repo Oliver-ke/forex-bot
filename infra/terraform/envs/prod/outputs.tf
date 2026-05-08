@@ -37,3 +37,15 @@ output "sidecar_service_name" {
 output "sidecar_log_group_name" {
   value = module.sidecar.log_group_name
 }
+
+output "agent_runner_service_name" {
+  value = module.agent_runner.service_name
+}
+
+output "agent_runner_task_role_arn" {
+  value = module.agent_runner.task_role_arn
+}
+
+output "agent_runner_log_group_name" {
+  value = module.agent_runner.log_group_name
+}

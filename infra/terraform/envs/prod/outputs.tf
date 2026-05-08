@@ -49,3 +49,8 @@ output "agent_runner_task_role_arn" {
 output "agent_runner_log_group_name" {
   value = module.agent_runner.log_group_name
 }
+
+output "db_password" {
+  value     = random_password.db.result
+  sensitive = true
+}

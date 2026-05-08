@@ -49,3 +49,8 @@ output "paper_runner_task_role_arn" {
 output "paper_runner_log_group_name" {
   value = module.paper_runner.log_group_name
 }
+
+output "db_password" {
+  value     = random_password.db.result
+  sensitive = true
+}

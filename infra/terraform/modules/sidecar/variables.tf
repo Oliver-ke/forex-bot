@@ -48,3 +48,9 @@ variable "common_tags" {
   description = "Tags applied to every resource"
   type        = map(string)
 }
+
+variable "service_connect_namespace_arn" {
+  description = "ARN of the Service Connect HTTP namespace from modules/cluster. If null, sidecar does not register."
+  type        = string
+  default     = null
+}

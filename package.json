@@ -14,7 +14,14 @@
     "test:watch": "vitest",
     "lint": "biome check .",
     "format": "biome format --write .",
-    "proto:gen": "pnpm --filter @forex-bot/broker-mt5 proto:gen"
+    "proto:gen": "pnpm --filter @forex-bot/broker-mt5 proto:gen",
+    "dev:up": "./scripts/dev-up.sh",
+    "dev:down": "./scripts/dev-down.sh",
+    "dev:mt5": "./scripts/run-mt5.sh",
+    "dev:agent": "./scripts/run-agent.sh",
+    "dev:paper": "./scripts/run-paper.sh",
+    "dev:replay": "./scripts/run-eval-replay.sh",
+    "dev:events": "./scripts/run-eval-events.sh"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.0",

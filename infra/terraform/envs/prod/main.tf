@@ -83,14 +83,15 @@ module "cluster" {
 }
 
 module "sidecar" {
-  source                  = "../../modules/sidecar"
-  env                     = var.env
-  cluster_arn             = module.cluster.cluster_arn
-  task_execution_role_arn = module.cluster.task_execution_role_arn
-  secrets_read_policy_arn = module.secrets.read_policy_arn
-  secret_arn              = module.secrets.secret_arn
-  vpc_subnet_ids          = module.network.public_subnet_ids
-  app_sg_id               = module.network.app_sg_id
-  ecr_repo_url            = module.ecr.repo_urls["mt5-sidecar"]
-  common_tags             = local.common_tags
+  source                        = "../../modules/sidecar"
+  env                           = var.env
+  cluster_arn                   = module.cluster.cluster_arn
+  task_execution_role_arn       = module.cluster.task_execution_role_arn
+  service_connect_namespace_arn = module.cluster.service_connect_namespace_arn
+  secrets_read_policy_arn       = module.secrets.read_policy_arn
+  secret_arn                    = module.secrets.secret_arn
+  vpc_subnet_ids                = module.network.public_subnet_ids
+  app_sg_id                     = module.network.app_sg_id
+  ecr_repo_url                  = module.ecr.repo_urls["mt5-sidecar"]
+  common_tags                   = local.common_tags
 }

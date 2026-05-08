@@ -33,9 +33,12 @@ resource "aws_iam_role_policy_attachment" "task_secrets_read" {
 }
 
 resource "aws_iam_role_policy_attachment" "task_extra" {
-  for_each   = toset(var.extra_iam_policy_arns)
+  # Use count (not for_each) because policy ARNs are unknown at plan time
+  # when sourced from sibling modules (e.g. module.data.journal_rw_policy_arn).
+  # for_each requires keys known at plan time; count tolerates unknown values.
+  count      = length(var.extra_iam_policy_arns)
   role       = aws_iam_role.task.name
-  policy_arn = each.value
+  policy_arn = var.extra_iam_policy_arns[count.index]
 }
 
 data "aws_region" "current" {}

@@ -54,3 +54,14 @@ variable "service_connect_namespace_arn" {
   type        = string
   default     = null
 }
+
+variable "broker_provider" {
+  description = "Broker provider plugin selected at boot: metaapi | mt5 | fake"
+  type        = string
+  default     = "metaapi"
+
+  validation {
+    condition     = contains(["metaapi", "mt5", "fake"], var.broker_provider)
+    error_message = "broker_provider must be one of: metaapi, mt5, fake."
+  }
+}

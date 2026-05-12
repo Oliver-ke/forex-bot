@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 import grpc
 from grpc_health.v1 import health_pb2
 
-from mt5_sidecar.adapter import MT5Adapter
+from mt5_sidecar.providers.mt5_native import MT5Provider as MT5Adapter
 from mt5_sidecar.server import _build_health_servicer, build_server
 
 

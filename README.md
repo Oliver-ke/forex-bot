@@ -122,4 +122,5 @@ Each implementation plan in `prd/plans/` produces working, testable software on 
 | 6c — App deploy | done | ECS services for agent-runner (prod) + paper-runner (staging); data-ingest deferred |
 | 6d — Observability | pending | CW metrics, SNS alerts, dashboards |
 | 6e — ops-cli | pending | kill-switch, reconcile, RAG backfill |
+| 6f — Broker-provider plugin (MetaApi) | done | provider abstraction + MetaApi cloud migration; drops Wine sidecar |
 | 7 — Go-Live Controls | pending | canary, chaos drills, gates |

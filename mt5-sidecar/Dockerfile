@@ -29,11 +29,14 @@ RUN pip install --no-cache-dir \
       metaapi-cloud-sdk>=27.0.0
 
 # Generate proto stubs (writes into /app/src/mt5_sidecar/generated/).
+# Post-gen: rewrite the absolute `import mt5_pb2` to a package-relative form
+# so the generated stub loads under `mt5_sidecar.generated.*`.
 RUN python -m grpc_tools.protoc \
       -I/proto \
       --python_out=/app/src/mt5_sidecar/generated \
       --grpc_python_out=/app/src/mt5_sidecar/generated \
-      /proto/mt5.proto
+      /proto/mt5.proto \
+    && python -c "import pathlib; p = pathlib.Path('/app/src/mt5_sidecar/generated/mt5_pb2_grpc.py'); s = p.read_text(); p.write_text(s.replace('import mt5_pb2 as mt5__pb2', 'from . import mt5_pb2 as mt5__pb2'))"
 
 ENV PYTHONPATH=/app/src
 

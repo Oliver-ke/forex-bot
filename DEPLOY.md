@@ -350,3 +350,56 @@ To enable live trading: ensure prod's secrets blob has live MT5 creds and `agent
 - `prd/specs/2026-05-08-forex-bot-app-deploy-design.md` — 6c design.
 - `prd/2026-04-21-forex-bot-design.md` — overall architecture.
 - `README.md` — per-plan status table.
+
+## Phase 6 — broker-provider switching (Plan 6f)
+
+The sidecar can run against MetaApi (`metaapi`, default), a fake in-memory
+broker (`fake`), or the legacy MT5 path (`mt5`, not in v1 prod image).
+
+### Populate MetaApi creds (once per env, after Phase 1)
+
+```bash
+ENV=staging   # then repeat for prod
+# 1. Register the env's MT5 account with metaapi.cloud. Capture:
+#    - METAAPI_TOKEN  (from your MetaApi dashboard)
+#    - METAAPI_ACCOUNT_ID  (UUID of the account you just registered)
+
+# 2. Update the Secrets Manager blob
+DB_PASS=$(cd infra/terraform/envs/$ENV && terraform output -raw db_password)
+cat > /tmp/$ENV-secrets.json <<JSON
+{
+  "anthropicApiKey":  "sk-ant-...",
+  "mt5Login":         "12345",
+  "mt5Server":        "ICMarketsSC-Demo",
+  "mt5Password":      "...",
+  "metaApiToken":     "<from metaapi.cloud dashboard>",
+  "metaApiAccountId": "<UUID of registered MT5 account>",
+  "dbPassword":       "$DB_PASS"
+}
+JSON
+aws secretsmanager put-secret-value \
+  --secret-id forex-bot/$ENV/secrets \
+  --secret-string file:///tmp/$ENV-secrets.json
+rm /tmp/$ENV-secrets.json
+
+# 3. Force the sidecar task to pick up the new secrets
+aws ecs update-service \
+  --cluster forex-bot-$ENV-cluster \
+  --service forex-bot-$ENV-mt5-sidecar \
+  --force-new-deployment
+```
+
+### Switching provider
+
+See `infra/terraform/README.md` "Broker-provider switching" section.
+
+### Troubleshooting
+
+- **Sidecar log says `METAAPI_TOKEN + METAAPI_ACCOUNT_ID required`**: secrets
+  blob not populated yet (or task started before the update). Update secret,
+  force-new-deployment.
+- **Logs say `synchronized=False` for >60s**: MetaApi can't reach broker.
+  Verify the MT5 account is deployed on MetaApi dashboard, broker server is
+  online, account isn't expired.
+- **Cost spike**: tick-stream subscriptions are the dominant cost. Add the
+  symbols you don't need to MetaApi's exclusion list via their dashboard.

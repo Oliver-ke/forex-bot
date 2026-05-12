@@ -6,6 +6,7 @@ requires-python = ">=3.12"
 dependencies = [
   "grpcio>=1.66.0",
   "grpcio-health-checking>=1.66.0",
+  "metaapi-cloud-sdk>=27.0.0",
   "protobuf>=5.27.0",
 ]
 

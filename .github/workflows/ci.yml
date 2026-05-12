@@ -27,6 +27,12 @@ jobs:
             echo "ERROR: AnthropicLlm cannot be instantiated in tests — use FakeLlm." >&2
             exit 1
           fi
+      - name: Verify no real MetaApi calls in tests
+        run: |
+          if grep -RInE 'MetaApi\(token=' --include='*.py' --include='*.ts' mt5-sidecar/tests apps packages; then
+            echo "ERROR: MetaApi cannot be instantiated in tests with a real token — use FakeProvider." >&2
+            exit 1
+          fi
       # PR-level event-study verification is covered by the CLI integration
       # test in `apps/eval-event-study/test/cli.test.ts`, which `pnpm test`
       # picks up via vitest's `apps/*/test/**` include glob. We deliberately

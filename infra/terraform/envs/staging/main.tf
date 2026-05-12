@@ -87,6 +87,7 @@ module "sidecar" {
   env                           = var.env
   cluster_arn                   = module.cluster.cluster_arn
   task_execution_role_arn       = module.cluster.task_execution_role_arn
+  broker_provider               = "metaapi"
   service_connect_namespace_arn = module.cluster.service_connect_namespace_arn
   secrets_read_policy_arn       = module.secrets.read_policy_arn
   secret_arn                    = module.secrets.secret_arn

@@ -64,12 +64,16 @@ resource "aws_ecs_task_definition" "sidecar" {
       environment = [
         { name = "MT5_SIDECAR_HOST", value = "0.0.0.0" },
         { name = "MT5_SIDECAR_PORT", value = "50051" },
+        { name = "BROKER_PROVIDER", value = var.broker_provider },
+        { name = "METAAPI_REGION", value = "london" },
       ]
 
       secrets = [
         { name = "MT5_LOGIN", valueFrom = "${var.secret_arn}:mt5Login::" },
         { name = "MT5_PASSWORD", valueFrom = "${var.secret_arn}:mt5Password::" },
         { name = "MT5_SERVER", valueFrom = "${var.secret_arn}:mt5Server::" },
+        { name = "METAAPI_TOKEN", valueFrom = "${var.secret_arn}:metaApiToken::" },
+        { name = "METAAPI_ACCOUNT_ID", valueFrom = "${var.secret_arn}:metaApiAccountId::" },
       ]
 
       logConfiguration = {

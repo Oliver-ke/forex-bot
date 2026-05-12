@@ -4,7 +4,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 import pytest
 
-from mt5_sidecar.adapter import MT5Adapter
+from mt5_sidecar.providers.mt5_native import MT5Provider as MT5Adapter
 
 
 def test_is_alive_true_when_account_info_returns_value():

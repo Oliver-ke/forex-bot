@@ -231,3 +231,55 @@ aws ecs execute-command \
   ```bash
   aws iam list-attached-role-policies --role-name forex-bot-$ENV-$APP-task
   ```
+
+## Broker-provider switching (Plan 6f)
+
+The sidecar picks its broker backend at boot via `BROKER_PROVIDER`. Valid:
+`metaapi` (default), `fake` (safe-mode / rollback), `mt5` (legacy Wine path,
+not deployable in the v1 image).
+
+### Switch a deployed env
+
+```bash
+ENV=staging
+PROVIDER=metaapi   # or: fake, mt5
+
+# 1. Update the tfvar (add the line if it's not present)
+grep -q '^broker_provider' infra/terraform/envs/$ENV/terraform.tfvars \
+  && sed -i '' "s/^broker_provider.*/broker_provider = \"$PROVIDER\"/" infra/terraform/envs/$ENV/terraform.tfvars \
+  || echo "broker_provider = \"$PROVIDER\"" >> infra/terraform/envs/$ENV/terraform.tfvars
+
+# 2. Apply — updates the sidecar task definition revision; ECS rolling redeploys
+cd infra/terraform/envs/$ENV
+terraform plan -out=tfplan
+terraform apply tfplan
+
+# 3. Verify
+aws logs tail /forex-bot/$ENV/mt5-sidecar --since 5m
+# Expect: "mt5-sidecar: provider=<PROVIDER>"
+```
+
+### Verify provider on a running task
+
+```bash
+aws ecs describe-tasks --cluster forex-bot-$ENV-cluster \
+  --tasks $(aws ecs list-tasks --cluster forex-bot-$ENV-cluster --service-name forex-bot-$ENV-mt5-sidecar --query 'taskArns[0]' --output text) \
+  --query 'tasks[0].overrides.containerOverrides[0].environment[?name==`BROKER_PROVIDER`].value | [0]'
+```
+(If the env var was set via the task definition rather than an override, the
+above returns null; check the task definition's container env block instead.)
+
+### Rollback to safe mode
+
+When the active provider is broken, flip to `fake` to keep the gRPC server up
+but reject orders cleanly:
+
+```bash
+ENV=staging
+echo "broker_provider = \"fake\"" >> infra/terraform/envs/$ENV/terraform.tfvars
+cd infra/terraform/envs/$ENV
+terraform apply
+```
+
+Apps see `FakeProvider` errors on quote requests (no seeded data) — they pause
+trades cleanly. agent-runner does not fail catastrophically.

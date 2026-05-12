@@ -13,11 +13,13 @@ resource "aws_secretsmanager_secret" "main" {
 resource "aws_secretsmanager_secret_version" "main" {
   secret_id = aws_secretsmanager_secret.main.id
   secret_string = jsonencode({
-    anthropicApiKey = "REPLACE_ME"
-    mt5Login        = "REPLACE_ME"
-    mt5Password     = "REPLACE_ME"
-    mt5Server       = "REPLACE_ME"
-    dbPassword      = var.db_password
+    anthropicApiKey  = "REPLACE_ME"
+    mt5Login         = "REPLACE_ME"
+    mt5Password      = "REPLACE_ME"
+    mt5Server        = "REPLACE_ME"
+    metaApiToken     = "REPLACE_ME"
+    metaApiAccountId = "REPLACE_ME"
+    dbPassword       = var.db_password
   })
 
   # Allow operator to overwrite anthropic/mt5 fields outside Terraform without

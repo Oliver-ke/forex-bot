@@ -1,28 +1,17 @@
 from __future__ import annotations
 
-from types import SimpleNamespace
-
 import grpc
 
-from mt5_sidecar.adapter import MT5Adapter
 from mt5_sidecar.generated import mt5_pb2, mt5_pb2_grpc
+from mt5_sidecar.providers.fake import FakeProvider
 from mt5_sidecar.server import build_server
 
 
-def _make_sdk():
-    return SimpleNamespace(
-        initialize=lambda **kw: True,
-        shutdown=lambda: None,
-        symbol_info_tick=lambda s: SimpleNamespace(time_msc=1, bid=1.0801, ask=1.0803),
-        copy_rates_from_pos=lambda s, tf, start, count: [],
-        account_info=lambda: None,
-        positions_get=lambda: [],
-        order_send=lambda req: SimpleNamespace(retcode=10009, order=42, price=1.0803),
-    )
-
-
 def test_get_quote_round_trip() -> None:
-    server = build_server(MT5Adapter(_make_sdk()), host="127.0.0.1", port=0)
+    adapter = FakeProvider()
+    adapter.initialize()
+    adapter.set_quote("EURUSD", bid=1.1000, ask=1.1002)
+    server = build_server(adapter, host="127.0.0.1", port=0)
     bound_port = server.add_insecure_port("127.0.0.1:0")
     server.start()
     try:
@@ -30,13 +19,17 @@ def test_get_quote_round_trip() -> None:
             stub = mt5_pb2_grpc.MT5Stub(channel)
             t = stub.GetQuote(mt5_pb2.GetQuoteRequest(symbol="EURUSD"))
             assert t.symbol == "EURUSD"
-            assert abs(t.bid - 1.0801) < 1e-9
+            assert abs(t.bid - 1.1000) < 1e-9
+            assert abs(t.ask - 1.1002) < 1e-9
     finally:
         server.stop(0)
 
 
 def test_place_order_market_round_trip() -> None:
-    server = build_server(MT5Adapter(_make_sdk()), host="127.0.0.1", port=0)
+    adapter = FakeProvider()
+    adapter.initialize()
+    adapter.set_quote("EURUSD", bid=1.1000, ask=1.1002)
+    server = build_server(adapter, host="127.0.0.1", port=0)
     bound_port = server.add_insecure_port("127.0.0.1:0")
     server.start()
     try:
@@ -48,11 +41,11 @@ def test_place_order_market_round_trip() -> None:
                     side=mt5_pb2.SIDE_BUY,
                     lot_size=0.1,
                     type=mt5_pb2.ORDER_TYPE_MARKET,
-                    sl=1.075,
-                    tp=1.085,
+                    sl=1.0950,
+                    tp=1.1050,
                 )
             )
-            assert res.ticket == "42"
-            assert abs(res.fill_price - 1.0803) < 1e-9
+            assert res.ticket == "1"
+            assert abs(res.fill_price - 1.1002) < 1e-9
     finally:
         server.stop(0)

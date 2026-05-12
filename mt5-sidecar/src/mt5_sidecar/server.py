@@ -9,7 +9,7 @@ from concurrent import futures
 import grpc
 from grpc_health.v1 import health, health_pb2, health_pb2_grpc
 
-from .adapter import MT5Adapter
+from .providers import BrokerProvider
 from .generated import mt5_pb2, mt5_pb2_grpc
 
 
@@ -49,7 +49,7 @@ def _to_proto_position(p) -> mt5_pb2.Position:
 
 
 def _build_health_servicer(
-    adapter: MT5Adapter, *, refresh_interval_s: float = 5.0
+    adapter: BrokerProvider, *, refresh_interval_s: float = 5.0
 ) -> health.HealthServicer:
     servicer = health.HealthServicer()
     servicer.set("", health_pb2.HealthCheckResponse.SERVING)
@@ -76,7 +76,7 @@ def _build_health_servicer(
 
 
 class MT5Service(mt5_pb2_grpc.MT5Servicer):
-    def __init__(self, adapter: MT5Adapter, *, stream_interval_sec: float = 0.5):
+    def __init__(self, adapter: BrokerProvider, *, stream_interval_sec: float = 0.5):
         self._adapter = adapter
         self._stream_interval_sec = stream_interval_sec
 
@@ -143,7 +143,7 @@ class MT5Service(mt5_pb2_grpc.MT5Servicer):
 
 
 def build_server(
-    adapter: MT5Adapter, host: str = "0.0.0.0", port: int = 50051
+    adapter: BrokerProvider, host: str = "0.0.0.0", port: int = 50051
 ) -> grpc.Server:
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=8))
     mt5_pb2_grpc.add_MT5Servicer_to_server(MT5Service(adapter), server)

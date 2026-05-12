@@ -1,4 +1,4 @@
-"""Entrypoint: bootstraps the real MetaTrader5 SDK and starts the gRPC server."""
+"""Entrypoint: starts the gRPC server with a BrokerProvider chosen at boot."""
 
 from __future__ import annotations
 
@@ -6,40 +6,42 @@ import os
 import signal
 import threading
 import time
-from typing import NoReturn
+from typing import Any, NoReturn
 
-from .adapter import MT5Adapter
+from .providers import BrokerProvider, get_provider
 from .server import build_server
 
 
-def main() -> NoReturn:
-    try:
-        import MetaTrader5 as mt5  # type: ignore[import-not-found]
-    except ImportError as e:
-        raise SystemExit(
-            "MetaTrader5 package not installed (install with `[mt5]` extra)"
-        ) from e
-
-    adapter = MT5Adapter(mt5)
-
+def _legacy_mt5_kwargs() -> dict[str, Any]:
+    """Build kwargs for the legacy MT5Provider from MT5_* env vars, if all
+    three are present. Returns {} otherwise (provider then uses last-known
+    login). MetaApi/Fake providers ignore this entirely."""
     login = os.environ.get("MT5_LOGIN")
     server_name = os.environ.get("MT5_SERVER")
     password = os.environ.get("MT5_PASSWORD")
     if login and server_name and password:
-        adapter.initialize(login=int(login), server=server_name, password=password)
-    else:
-        adapter.initialize()
+        return {"login": int(login), "server": server_name, "password": password}
+    return {}
+
+
+def main() -> NoReturn:
+    provider_name = os.environ.get("BROKER_PROVIDER", "metaapi").lower()
+    print(f"mt5-sidecar: provider={provider_name}", flush=True)
+
+    provider: BrokerProvider = get_provider()
+    init_kwargs = _legacy_mt5_kwargs() if provider_name == "mt5" else {}
+    provider.initialize(**init_kwargs)
 
     host = os.environ.get("MT5_SIDECAR_HOST", "0.0.0.0")
     port = int(os.environ.get("MT5_SIDECAR_PORT", "50051"))
-    server = build_server(adapter, host=host, port=port)
+    server = build_server(provider, host=host, port=port)
     server.start()
 
     def _watchdog() -> None:
         consecutive_failures = 0
         while True:
             time.sleep(30.0)
-            if adapter.is_alive():
+            if provider.is_alive():
                 consecutive_failures = 0
                 continue
             consecutive_failures += 1
@@ -49,11 +51,14 @@ def main() -> NoReturn:
             )
             if consecutive_failures == 1:
                 try:
-                    adapter.reconnect_or_die(max_attempts=1)
+                    provider.reconnect_or_die(max_attempts=1)
                     consecutive_failures = 0
                     continue
                 except Exception as exc:
-                    print(f"mt5-sidecar: reconnect attempt failed: {exc}", flush=True)
+                    print(
+                        f"mt5-sidecar: reconnect attempt failed: {exc}",
+                        flush=True,
+                    )
             if consecutive_failures >= 2:
                 print(
                     "mt5-sidecar: liveness probe failed twice; exiting for ECS restart",
@@ -61,11 +66,13 @@ def main() -> NoReturn:
                 )
                 os._exit(1)
 
-    threading.Thread(target=_watchdog, name="mt5-watchdog", daemon=True).start()
+    threading.Thread(
+        target=_watchdog, name="mt5-watchdog", daemon=True
+    ).start()
 
     def _shutdown(signum, frame):  # noqa: ANN001
         server.stop(grace=3)
-        adapter.shutdown()
+        provider.shutdown()
         raise SystemExit(0)
 
     signal.signal(signal.SIGINT, _shutdown)

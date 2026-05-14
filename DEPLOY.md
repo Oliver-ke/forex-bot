@@ -1,6 +1,6 @@
 # forex-bot — Deployment Guide
 
-End-to-end runbook from empty AWS account to live `agent-runner`. Combines Plans 6a (IaC base), 6b (sidecar), 6c (apps).
+End-to-end runbook from empty AWS account to live `agent-runner`. Combines Plans 6a (IaC base), 6b (sidecar scaffold), 6c (apps), 6f (broker-provider plugin + MetaApi).
 
 For per-step Terraform commands, see `infra/terraform/README.md`. This guide is the lane-marking on top.
 
@@ -8,41 +8,46 @@ For per-step Terraform commands, see `infra/terraform/README.md`. This guide is 
 
 ```
                       AWS account (eu-west-2)
-   ┌─────────────────────────────────────────────────────────────┐
-   │ VPC (10.0.0.0/16 prod | 10.1.0.0/16 staging)                │
-   │ 2 public subnets, no NAT, public IPs on tasks               │
-   │                                                             │
-   │ ECS Fargate cluster — forex-bot-<env>-cluster               │
-   │ Service Connect namespace — forex-bot-<env>.local           │
-   │   ┌─────────────────────┐  ┌──────────────────────────────┐ │
-   │   │ mt5-sidecar         │◄─┤ agent-runner (prod)          │ │
-   │   │ Wine + MT5 portable │  │ paper-runner (staging)       │ │
-   │   │ gRPC :50051         │  │ → broker MT5 via SC DNS      │ │
-   │   └─────────┬───────────┘  └──────────────────────────────┘ │
-   │             │                              │                │
-   │             ▼                              ▼                │
-   │     broker MT5 server          ElastiCache Redis            │
-   │     (public internet)          RDS Postgres (pgvector)      │
-   │                                DynamoDB (journal+kill-switch)│
-   │                                Secrets Manager (one blob)   │
-   └─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-                    Anthropic API (public)
+   ┌──────────────────────────────────────────────────────────────────┐
+   │ VPC (10.0.0.0/16 prod | 10.1.0.0/16 staging)                     │
+   │ 2 public subnets, no NAT, public IPs on tasks                    │
+   │                                                                  │
+   │ ECS Fargate cluster — forex-bot-<env>-cluster                    │
+   │ Service Connect namespace — forex-bot-<env>.local                │
+   │   ┌─────────────────────────┐  ┌──────────────────────────────┐  │
+   │   │ mt5-sidecar (Python)    │◄─┤ agent-runner (prod)          │  │
+   │   │ BROKER_PROVIDER=metaapi │  │ paper-runner (staging)       │  │
+   │   │ gRPC :50051             │  │ → sidecar via SC DNS         │  │
+   │   └─────────┬───────────────┘  └──────────────────────────────┘  │
+   │             │ REST + WebSocket               │                   │
+   │             ▼                                ▼                   │
+   │   metaapi.cloud (London region)    ElastiCache Redis             │
+   │             │                       RDS Postgres (pgvector)      │
+   │             │                       DynamoDB (journal+kill-switch)│
+   │             ▼                       Secrets Manager (one blob)   │
+   │     broker MT5 server                                            │
+   │     (broker-side)                                                │
+   └──────────────────────────────────────────────────────────────────┘
+                                 │
+                                 ▼
+                       Anthropic API (public)
 ```
 
 Per env: 1 cluster, 2 services. Prod runs `agent-runner`, staging runs `paper-runner`.
+
+**Sidecar provider** is pluggable via `BROKER_PROVIDER` env var: `metaapi` (default, prod), `fake` (safe-mode / rollback), `mt5` (legacy Wine path — not in v1 prod image). Provider selected at boot; gRPC contract unchanged.
 
 ## Cost (steady-state)
 
 | Tier | Per env | Combined (prod+staging) |
 |------|---------|-------------------------|
 | 6a base (RDS+Redis+DDB+ECR+Secrets) | ~$28 | ~$56 |
-| 6b sidecar (Fargate 1vCPU/2GB) | ~$31 | ~$62 |
+| 6b/6f sidecar (Fargate 1vCPU/2GB — downsize candidate post-6f) | ~$31 | ~$62 |
 | 6c app (Fargate 0.5vCPU/1GB) | ~$15 | ~$30 |
-| **Total** | **~$74** | **~$148/mo** |
+| 6f MetaApi PAYG | ~$20-40 | ~$40-80 |
+| **Total** | **~$94-114** | **~$188-228/mo** |
 
-Plus Anthropic LLM spend (variable; budget cap on paper-runner = `PAPER_BUDGET_USD`).
+Plus Anthropic LLM spend (variable; budget cap on paper-runner = `PAPER_BUDGET_USD`). MetaApi sidecar Fargate can be downsized to 0.5vCPU/1GB once stability proven (Plan 7 cost tuning).
 
 ## Prerequisites
 
@@ -67,6 +72,14 @@ Plus Anthropic LLM spend (variable; budget cap on paper-runner = `PAPER_BUDGET_U
 - Pick broker (IC Markets / Pepperstone / FP Markets / Tickmill — see `prd/specs/...`). Open **demo** for staging + **live** for prod (same broker = simpler).
 - Capture per env: MT5 login (numeric), MT5 server name (e.g. `ICMarketsSC-Demo`), MT5 password.
 - Confirm broker permits API/Expert Advisor trading on the live account.
+
+**MetaApi.cloud account** (default provider since Plan 6f):
+- Sign up at https://metaapi.cloud (free tier suffices for staging).
+- Per env: register your MT5 account in the MetaApi dashboard. Capture:
+  - `METAAPI_TOKEN` (single token per account; bottom of dashboard).
+  - `METAAPI_ACCOUNT_ID` (UUID assigned to the registered MT5 account).
+- Region: `london` is the default; verify your broker server's MT5 region is close.
+- PAYG billing — primary cost driver is tick-stream subscriptions. Monitor via MetaApi dashboard.
 
 **Anthropic**:
 - API key from https://console.anthropic.com.
@@ -114,15 +127,18 @@ Two passes: staging first, prod second.
 
    Time: ~6 min. Resources: VPC + RDS (~3 min) + Redis (~2 min) + DDB + ECR + IAM + ECS cluster + sidecar service + paper-runner service.
 
-3. Populate Secrets Manager **(must do before any image build)**:
+3. Populate Secrets Manager **(must do before sidecar can serve real broker)**:
    ```bash
+   DB_PASS=$(terraform output -raw db_password)
    cat > /tmp/staging-secrets.json <<EOF
    {
-     "anthropicApiKey": "sk-ant-...",
-     "mt5Login":        "12345",
-     "mt5Server":       "ICMarketsSC-Demo",
-     "mt5Password":     "...",
-     "dbPassword":      "$(terraform output -raw db_password 2>/dev/null || echo 'CHECK STATE')"
+     "anthropicApiKey":  "sk-ant-...",
+     "mt5Login":         "12345",
+     "mt5Server":        "ICMarketsSC-Demo",
+     "mt5Password":      "...",
+     "metaApiToken":     "<from metaapi.cloud dashboard>",
+     "metaApiAccountId": "<UUID of registered MT5 account>",
+     "dbPassword":       "$DB_PASS"
    }
    EOF
    aws secretsmanager put-secret-value \
@@ -131,7 +147,10 @@ Two passes: staging first, prod second.
    rm /tmp/staging-secrets.json
    ```
 
-   `dbPassword` was randomly generated by Terraform. Leave it as-is — pulling it from state is fine since the state itself is encrypted at rest.
+   Notes:
+   - `dbPassword` was randomly generated by Terraform. Pulling from state is fine (state is encrypted at rest).
+   - `mt5*` fields are legacy — ignored when `BROKER_PROVIDER=metaapi` (the default since Plan 6f). Keep them populated for safety so flipping to `BROKER_PROVIDER=mt5` doesn't fail-fast.
+   - `metaApi*` fields are **required for the default `metaapi` provider**. If absent, sidecar fails at boot with `METAAPI_TOKEN + METAAPI_ACCOUNT_ID required`.
 
 4. **Enable `pgvector` extension on RDS** (one-time per env, post-apply):
 
@@ -187,9 +206,12 @@ After staging + prod TF applies, all 3 services exist but tasks fail health (no 
 
 ```bash
 gh workflow run sidecar-image.yml --ref main
-# Wait ~10 min on first build (Wine + MT5 portable layers dominate)
+# ~2-3 min on first build (Linux Python only post-Plan 6f — no Wine).
+# Cached rebuilds <30s.
 gh run watch
 ```
+
+Sidecar image is ~211 MB. Drops from the broken 4 GB Wine attempt to a slim `python:3.11-slim` base carrying `metaapi-cloud-sdk` + `grpcio` + the generated proto stubs.
 
 Once sidecar is `RUNNING + HEALTHY` per env:
 
@@ -214,7 +236,11 @@ aws ecs describe-services --cluster forex-bot-$ENV-cluster --services forex-bot-
 # Expected: run=1, roll=COMPLETED
 
 aws logs tail /forex-bot/$ENV/mt5-sidecar --since 10m
-# Expected: "mt5-sidecar listening on 0.0.0.0:50051" + a successful account_info call
+# Expected:
+#   "mt5-sidecar: provider=metaapi"
+#   "mt5-sidecar listening on 0.0.0.0:50051"
+# Followed (after MetaApi sync ~30-60s) by:
+#   "MetaApi connection synchronized" — provider healthy, account reachable.
 
 # App healthy
 APP=$([[ $ENV = prod ]] && echo agent-runner || echo paper-runner)
@@ -299,16 +325,21 @@ done
 
 **Pre-live checklist** (manual until Plan 7):
 
-- [ ] Secrets blob populated with **live** broker creds (not demo).
+- [ ] Secrets blob populated with **live** broker creds (not demo) in `mt5*` fields.
+- [ ] Secrets blob populated with **prod** `metaApiToken` + `metaApiAccountId` (live MT5 registered with MetaApi).
 - [ ] `MT5_DEMO=0` in `module.agent_runner.env_vars` (already set in `envs/prod/main.tf`).
 - [ ] `terraform plan` from `envs/prod` shows zero infra drift.
-- [ ] `agent-runner` task has run cleanly against demo broker for ≥ 1 week (paper-runner staging surrogate).
+- [ ] `agent-runner` task has run cleanly against demo broker via MetaApi for ≥ 1 week (paper-runner staging surrogate).
+- [ ] MetaApi `synchronized=true` sustained for the soak period; reconnect frequency < 1/day.
+- [ ] MetaApi region p95 latency from eu-west-2 measured < 100 ms during soak.
 - [ ] Anthropic budget alarm wired (Plan 6d) — currently informational, not capping prod.
+- [ ] MetaApi PAYG cost tracked (extend `BudgetTracker` per Plan 6d deferred).
 - [ ] Kill-switch operator path tested (Phase 4 commands above succeed).
 - [ ] Backup window for RDS (1d retention) and DynamoDB PITR confirmed.
-- [ ] Anthropic + broker creds documented in 1Password / SSM / equivalent — NOT in Slack or git.
+- [ ] Anthropic + broker + MetaApi creds documented in 1Password / SSM / equivalent — NOT in Slack or git.
 - [ ] Risk officer LLM tested against event-study fixtures (`apps/eval-event-study --all --mode full`).
 - [ ] First trade size capped via `defaultRiskConfig` profile (`conservative` recommended for week-1).
+- [ ] `BROKER_PROVIDER=fake` rollback path tested (flip tfvars, apply, sidecar accepts gRPC but rejects orders).
 
 To enable live trading: ensure prod's secrets blob has live MT5 creds and `agent-runner` task is `RUNNING + HEALTHY`. The agent will trade per `WATCHED_SYMBOLS` schedule defined in `module "agent_runner"` env_vars. To pause, set `desired_count = 0` on the agent-runner service (does not affect sidecar).
 
@@ -328,43 +359,53 @@ To enable live trading: ensure prod's secrets blob has live MT5 creds and `agent
 - **Task: `unable to pull image`**: image not pushed yet. Run `gh workflow run apps-image.yml`.
 - **Task: `STOPPED — Essential container exited`**: read `aws logs tail /forex-bot/<env>/<svc>`. Most common: missing env var (fail-fast), broker rejected MT5 login, or Anthropic 401.
 - **`Cannot resolve mt5-sidecar`**: Service Connect namespace mis-attached. `aws ecs describe-services ... --query services[0].serviceConnectConfiguration` should show non-empty namespace.
-- **`MT5 initialize() failed`**: sidecar's MT5 creds wrong. Update Secrets Manager + force-new-deployment on the sidecar service.
-- **Sidecar healthcheck fails after MT5 server maintenance**: watchdog restart-or-die (Plan 6b §5.3) usually self-heals; if not, force-new-deployment.
+- **`METAAPI_TOKEN + METAAPI_ACCOUNT_ID required`**: secrets blob missing `metaApiToken` / `metaApiAccountId` keys (or task started before the update). Update secret + force-new-deployment on the sidecar.
+- **Sidecar logs `synchronized=False` >60s**: MetaApi can't reach broker. Check MetaApi dashboard (account deployed? broker server up? account expired?). Test with the MetaApi web SDK from your laptop to isolate.
+- **MetaApi PAYG cost spike**: tick-stream subscribes dominate. Inspect MetaApi dashboard cost breakdown. Trim symbols in `WATCHED_SYMBOLS` or exclude symbols server-side via the MetaApi dashboard.
+- **Sidecar healthcheck fails after broker maintenance**: watchdog reconnect-or-die (Plan 6b §5.3) usually self-heals within 60s; if not, force-new-deployment on the sidecar.
+- **Need to fall back to a non-MetaApi path**: flip `broker_provider = "fake"` in `terraform.tfvars` + apply. Sidecar accepts gRPC but rejects orders cleanly. agent-runner pauses without crashing. See `infra/terraform/README.md` "Broker-provider switching".
 - **DynamoDB `AccessDeniedException`**: task role missing journal-rw / killswitch-rw. `aws iam list-attached-role-policies --role-name forex-bot-<env>-<app>-task` should show both.
 - **High Anthropic spend on paper-runner**: `BudgetTracker` trips when `PAPER_BUDGET_USD` is reached and stops issuing LLM calls. Investigate via CW logs.
 - **`docker buildx ... wineboot: could not load kernel32.dll` on macOS**: known QEMU emulation issue. Build on a Linux x86_64 host or rely on CI.
 
 ## What's not in this guide
 
-- **CloudWatch dashboards / alerts** — Plan 6d.
+- **CloudWatch dashboards / alerts + MetaApi cost tracking in `BudgetTracker`** — Plan 6d.
+- **`forex-bot db init` for pgvector + `forex-bot kill-switch` + reconcile** — Plan 6e ops-cli.
 - **Auto kill-switch + canary deploy** — Plan 7.
-- **Auto secret rotation** — Plan 7.
+- **Auto secret rotation (incl. MetaApi token rotation)** — Plan 7.
 - **`data-ingest` deployment** — needs `main.ts` first; future plan.
-- **Multi-region failover** — out of scope until Plan 7+.
+- **Multi-region failover (incl. MetaApi region failover)** — Plan 7+.
+- **`Mt5LinuxProvider`** (gmag11 image + RPyC) — deferred unless MetaApi proves unsuitable.
 
 ## References
 
-- `infra/terraform/README.md` — per-step TF command reference.
+- `infra/terraform/README.md` — per-step TF command reference + provider switching.
 - `prd/specs/2026-05-03-forex-bot-infra-base-design.md` — 6a design.
-- `prd/specs/2026-05-06-forex-bot-sidecar-deploy-design.md` — 6b design.
+- `prd/specs/2026-05-06-forex-bot-sidecar-deploy-design.md` — 6b design (legacy Wine path).
 - `prd/specs/2026-05-08-forex-bot-app-deploy-design.md` — 6c design.
+- `prd/specs/2026-05-12-forex-bot-broker-provider-design.md` — 6f design (provider plugin + MetaApi).
 - `prd/2026-04-21-forex-bot-design.md` — overall architecture.
 - `README.md` — per-plan status table.
 
 ## Phase 6 — broker-provider switching (Plan 6f)
 
-The sidecar can run against MetaApi (`metaapi`, default), a fake in-memory
-broker (`fake`), or the legacy MT5 path (`mt5`, not in v1 prod image).
+The sidecar provider is set via `BROKER_PROVIDER` env var, plumbed through
+the Terraform `module.sidecar.broker_provider` variable. Valid values:
 
-### Populate MetaApi creds (once per env, after Phase 1)
+| Provider | Purpose | Default location |
+|----------|---------|------------------|
+| `metaapi` | Production. Talks to metaapi.cloud REST/WebSocket. | Both envs (default). |
+| `fake` | Safe-mode / rollback. gRPC stays up; orders are rejected cleanly. | None. |
+| `mt5` | Legacy native MT5 SDK path. Requires Wine + MetaTrader5 pkg. Not deployable in the v1 prod image. | None. |
+
+Initial creds population is part of Phase 1. This phase documents **runtime
+switches** + **rotation** + **troubleshooting**.
+
+### Update MetaApi creds (rotation or initial fill)
 
 ```bash
 ENV=staging   # then repeat for prod
-# 1. Register the env's MT5 account with metaapi.cloud. Capture:
-#    - METAAPI_TOKEN  (from your MetaApi dashboard)
-#    - METAAPI_ACCOUNT_ID  (UUID of the account you just registered)
-
-# 2. Update the Secrets Manager blob
 DB_PASS=$(cd infra/terraform/envs/$ENV && terraform output -raw db_password)
 cat > /tmp/$ENV-secrets.json <<JSON
 {
@@ -382,24 +423,51 @@ aws secretsmanager put-secret-value \
   --secret-string file:///tmp/$ENV-secrets.json
 rm /tmp/$ENV-secrets.json
 
-# 3. Force the sidecar task to pick up the new secrets
+# Force the sidecar task to pick up the new secrets
 aws ecs update-service \
   --cluster forex-bot-$ENV-cluster \
   --service forex-bot-$ENV-mt5-sidecar \
   --force-new-deployment
 ```
 
-### Switching provider
+### Switching provider at runtime (no image rebuild)
 
-See `infra/terraform/README.md` "Broker-provider switching" section.
+```bash
+ENV=staging
+PROVIDER=fake     # or: metaapi, mt5
 
-### Troubleshooting
+# 1. Flip the tfvar
+grep -q '^broker_provider' infra/terraform/envs/$ENV/terraform.tfvars \
+  && sed -i '' "s/^broker_provider.*/broker_provider = \"$PROVIDER\"/" infra/terraform/envs/$ENV/terraform.tfvars \
+  || echo "broker_provider = \"$PROVIDER\"" >> infra/terraform/envs/$ENV/terraform.tfvars
 
-- **Sidecar log says `METAAPI_TOKEN + METAAPI_ACCOUNT_ID required`**: secrets
-  blob not populated yet (or task started before the update). Update secret,
-  force-new-deployment.
-- **Logs say `synchronized=False` for >60s**: MetaApi can't reach broker.
-  Verify the MT5 account is deployed on MetaApi dashboard, broker server is
-  online, account isn't expired.
-- **Cost spike**: tick-stream subscriptions are the dominant cost. Add the
-  symbols you don't need to MetaApi's exclusion list via their dashboard.
+# 2. Apply — updates the task def revision; ECS rolling redeploys.
+cd infra/terraform/envs/$ENV
+terraform plan -out=tfplan
+terraform apply tfplan
+
+# 3. Verify
+aws logs tail /forex-bot/$ENV/mt5-sidecar --since 5m
+# Expect: "mt5-sidecar: provider=<PROVIDER>"
+```
+
+Full reference + edge cases: `infra/terraform/README.md` → "Broker-provider switching".
+
+### Local sidecar testing (no AWS)
+
+```bash
+# Fake provider — no creds, no network
+docker run --rm -e BROKER_PROVIDER=fake \
+  -p 50099:50051 \
+  $(aws ecr describe-repositories --repository-names forex-bot/staging/mt5-sidecar --query 'repositories[0].repositoryUri' --output text):latest
+
+# Test gRPC reachability from another shell
+grpcurl -plaintext localhost:50099 grpc.health.v1.Health/Check
+# Expected: {"status": "SERVING"}
+```
+
+Or against a local build:
+```bash
+docker buildx build --platform linux/amd64 -f mt5-sidecar/Dockerfile -t forex-bot/mt5-sidecar:smoke .
+docker run --rm -e BROKER_PROVIDER=fake -p 50099:50051 forex-bot/mt5-sidecar:smoke
+```

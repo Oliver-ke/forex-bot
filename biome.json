@@ -10,7 +10,9 @@
       "pnpm-lock.yaml",
       "mt5-sidecar/.venv",
       "mt5-sidecar/src/mt5_sidecar/generated",
-      "packages/broker-mt5/src/generated"
+      "packages/broker-mt5/src/generated",
+      "**/.terraform",
+      "**/tfplan"
     ]
   },
   "organizeImports": { "enabled": true },

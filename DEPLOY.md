@@ -176,7 +176,7 @@ Two passes: staging first, prod second.
    PG_HOST=$(cd infra/terraform/envs/$ENV && terraform output -raw pg_endpoint)
    PG_PASS=$(aws secretsmanager get-secret-value --secret-id forex-bot/$ENV/secrets --query SecretString --output text | jq -r .dbPassword)
    CLUSTER=forex-bot-$ENV-cluster
-   SUBNET=$(cd infra/terraform/envs/$ENV && terraform output -json | jq -r '.public_subnet_ids.value[0]' 2>/dev/null || aws ec2 describe-subnets --filters "Name=tag:Project,Values=forex-bot" "Name=tag:Environment,Values=$ENV" "Name=tag:Tier,Values=public" --query 'Subnets[0].SubnetId' --output text)
+   SUBNET=$(aws ec2 describe-subnets --filters "Name=tag:Project,Values=forex-bot" "Name=tag:Environment,Values=$ENV" "Name=tag:Tier,Values=public" --query 'Subnets[0].SubnetId' --output text)
    APP_SG=$(aws ec2 describe-security-groups --filters "Name=tag:Name,Values=forex-bot-$ENV-app-sg" --query 'SecurityGroups[0].GroupId' --output text)
 
    aws ecs run-task --cluster "$CLUSTER" --launch-type FARGATE \
@@ -325,8 +325,8 @@ done
 
 **Pre-live checklist** (manual until Plan 7):
 
-- [ ] Secrets blob populated with **live** broker creds (not demo) in `mt5*` fields.
-- [ ] Secrets blob populated with **prod** `metaApiToken` + `metaApiAccountId` (live MT5 registered with MetaApi).
+- [ ] Secrets blob populated with **prod** `metaApiToken` + `metaApiAccountId`, with a **live** (not demo) MT5 account registered in MetaApi — this is the live-trading cutover under the default `metaapi` provider.
+- [ ] `mt5*` fields populated with live broker creds too (ignored under `metaapi`, but kept current so a `mt5` fallback doesn't fail-fast).
 - [ ] `MT5_DEMO=0` in `module.agent_runner.env_vars` (already set in `envs/prod/main.tf`).
 - [ ] `terraform plan` from `envs/prod` shows zero infra drift.
 - [ ] `agent-runner` task has run cleanly against demo broker via MetaApi for ≥ 1 week (paper-runner staging surrogate).
@@ -436,17 +436,27 @@ aws ecs update-service \
 ENV=staging
 PROVIDER=fake     # or: metaapi, mt5
 
-# 1. Flip the tfvar
+# 1. Flip the tfvar (GNU sed; on macOS use `sed -i ''`)
 grep -q '^broker_provider' infra/terraform/envs/$ENV/terraform.tfvars \
-  && sed -i '' "s/^broker_provider.*/broker_provider = \"$PROVIDER\"/" infra/terraform/envs/$ENV/terraform.tfvars \
+  && sed -i "s/^broker_provider.*/broker_provider = \"$PROVIDER\"/" infra/terraform/envs/$ENV/terraform.tfvars \
   || echo "broker_provider = \"$PROVIDER\"" >> infra/terraform/envs/$ENV/terraform.tfvars
 
-# 2. Apply — updates the task def revision; ECS rolling redeploys.
+# 2. Apply — registers a NEW task def revision with the new BROKER_PROVIDER.
 cd infra/terraform/envs/$ENV
 terraform plan -out=tfplan
 terraform apply tfplan
 
-# 3. Verify
+# 3. Repoint the service at the new revision. REQUIRED: the sidecar service has
+#    `lifecycle { ignore_changes = [task_definition] }`, so `terraform apply`
+#    does NOT move the running service to the new revision — you must do it
+#    manually, or the service keeps running the old provider.
+NEW_TD=$(aws ecs list-task-definitions --family-prefix forex-bot-$ENV-mt5-sidecar \
+  --sort DESC --max-items 1 --query 'taskDefinitionArns[0]' --output text)
+aws ecs update-service --cluster forex-bot-$ENV-cluster \
+  --service forex-bot-$ENV-mt5-sidecar \
+  --task-definition "$NEW_TD" --force-new-deployment
+
+# 4. Verify
 aws logs tail /forex-bot/$ENV/mt5-sidecar --since 5m
 # Expect: "mt5-sidecar: provider=<PROVIDER>"
 ```

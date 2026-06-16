@@ -244,17 +244,27 @@ not deployable in the v1 image).
 ENV=staging
 PROVIDER=metaapi   # or: fake, mt5
 
-# 1. Update the tfvar (add the line if it's not present)
+# 1. Update the tfvar (add the line if it's not present; GNU sed — on macOS use `sed -i ''`)
 grep -q '^broker_provider' infra/terraform/envs/$ENV/terraform.tfvars \
-  && sed -i '' "s/^broker_provider.*/broker_provider = \"$PROVIDER\"/" infra/terraform/envs/$ENV/terraform.tfvars \
+  && sed -i "s/^broker_provider.*/broker_provider = \"$PROVIDER\"/" infra/terraform/envs/$ENV/terraform.tfvars \
   || echo "broker_provider = \"$PROVIDER\"" >> infra/terraform/envs/$ENV/terraform.tfvars
 
-# 2. Apply — updates the sidecar task definition revision; ECS rolling redeploys
+# 2. Apply — registers a NEW sidecar task definition revision
 cd infra/terraform/envs/$ENV
 terraform plan -out=tfplan
 terraform apply tfplan
 
-# 3. Verify
+# 3. Repoint the service at the new revision (REQUIRED).
+#    aws_ecs_service.sidecar has `lifecycle { ignore_changes = [task_definition] }`,
+#    so terraform apply registers the new revision but does NOT move the running
+#    service onto it. Without this step the service keeps the old provider.
+NEW_TD=$(aws ecs list-task-definitions --family-prefix forex-bot-$ENV-mt5-sidecar \
+  --sort DESC --max-items 1 --query 'taskDefinitionArns[0]' --output text)
+aws ecs update-service --cluster forex-bot-$ENV-cluster \
+  --service forex-bot-$ENV-mt5-sidecar \
+  --task-definition "$NEW_TD" --force-new-deployment
+
+# 4. Verify
 aws logs tail /forex-bot/$ENV/mt5-sidecar --since 5m
 # Expect: "mt5-sidecar: provider=<PROVIDER>"
 ```
@@ -279,6 +289,12 @@ ENV=staging
 echo "broker_provider = \"fake\"" >> infra/terraform/envs/$ENV/terraform.tfvars
 cd infra/terraform/envs/$ENV
 terraform apply
+# REQUIRED: repoint the service (ignore_changes = [task_definition] means apply
+# alone won't move it). See "Switch a deployed env" step 3.
+NEW_TD=$(aws ecs list-task-definitions --family-prefix forex-bot-$ENV-mt5-sidecar \
+  --sort DESC --max-items 1 --query 'taskDefinitionArns[0]' --output text)
+aws ecs update-service --cluster forex-bot-$ENV-cluster \
+  --service forex-bot-$ENV-mt5-sidecar --task-definition "$NEW_TD" --force-new-deployment
 ```
 
 Apps see `FakeProvider` errors on quote requests (no seeded data) — they pause

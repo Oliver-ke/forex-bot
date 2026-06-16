@@ -19,6 +19,10 @@ permissions:
 
 jobs:
   agent-runner:
+    # agent-runner is prod-only (staging runs paper-runner). Skip until prod is
+    # deployed — set repo variable DEPLOY_PROD=true once envs/prod is applied and
+    # the forex-bot-prod-ci role exists. Keeps staging-only runs green.
+    if: vars.DEPLOY_PROD == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

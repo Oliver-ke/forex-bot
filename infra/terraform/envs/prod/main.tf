@@ -115,6 +115,10 @@ module "agent_runner" {
     { env_name = "ANTHROPIC_API_KEY", json_key = "anthropicApiKey" },
   ]
   env_vars = {
+    # grpc-js resolves via dns.lookup({all:true}); Node's default verbatim order
+    # returns the Service Connect proxy's IPv6 address first, which is
+    # unreachable on these IPv4-only Fargate tasks (ENETUNREACH). Prefer IPv4.
+    NODE_OPTIONS     = "--dns-result-order=ipv4first"
     MT5_HOST         = "mt5-sidecar"
     MT5_PORT         = "50051"
     MT5_DEMO         = "0"

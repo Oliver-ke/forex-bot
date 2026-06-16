@@ -1,3 +1,3 @@
-github_org        = "REPLACE_ME_GITHUB_ORG"
-oidc_provider_arn = "REPLACE_ME_FROM_BOOTSTRAP_OUTPUT"
-repo_url          = "github.com/REPLACE_ME/forex-bot"
+github_org        = "Oliver-ke"
+oidc_provider_arn = "arn:aws:iam::476189781396:oidc-provider/token.actions.githubusercontent.com"
+repo_url          = "github.com/Oliver-ke/forex-bot"

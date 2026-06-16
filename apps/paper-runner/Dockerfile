@@ -14,7 +14,10 @@ COPY pnpm-workspace.yaml pnpm-lock.yaml package.json /app/
 COPY tsconfig.base.json /app/
 COPY packages /app/packages
 COPY apps /app/apps
-RUN pnpm install --filter @forex-bot/paper-runner... --frozen-lockfile
+# --prod=false: the ENTRYPOINT runs the app via `tsx`, a devDependency. Without
+# this, NODE_ENV=production prunes tsx and the container dies with
+# "Command tsx not found".
+RUN pnpm install --filter @forex-bot/paper-runner... --frozen-lockfile --prod=false
 
 FROM base AS final
 WORKDIR /app

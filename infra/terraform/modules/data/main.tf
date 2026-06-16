@@ -50,11 +50,17 @@ resource "aws_elasticache_subnet_group" "redis" {
   subnet_ids = var.subnet_ids
 }
 
+# node_type is cache.t3.micro (x86), NOT cache.t4g.micro (Graviton): in
+# 2026-06 eu-west-2 had no t4g.micro capacity in EITHER AZ (2a and 2b both
+# returned "insufficient capacity", surfaced as the generic
+# `incompatible-network` failure state). t3.micro has far broader capacity at
+# ~the same price. No availability_zone pin — let ElastiCache place the node
+# in whichever AZ in the subnet group has capacity.
 resource "aws_elasticache_cluster" "redis" {
   cluster_id           = "${local.name_prefix}-redis"
   engine               = "redis"
   engine_version       = "7.1"
-  node_type            = "cache.t4g.micro"
+  node_type            = "cache.t3.micro"
   num_cache_nodes      = 1
   parameter_group_name = "default.redis7"
   port                 = 6379

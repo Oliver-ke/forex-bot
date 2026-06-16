@@ -9,9 +9,11 @@ CREATE TABLE IF NOT EXISTS rag_docs (
   ts            bigint NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS rag_docs_embedding_idx
-  ON rag_docs
-  USING ivfflat (embedding vector_cosine_ops)
-  WITH (lists = 50);
+-- NOTE: no ivfflat/hnsw ANN index here. pgvector requires a fixed-dimension
+-- column (vector(N)) to build one, but `embedding` is intentionally dimensionless
+-- so the store dimension is configurable per instance (PgvectorRagStore.dimension).
+-- Cosine search via `embedding <=> $1` works exactly without an index (sequential
+-- scan). Re-add an ivfflat index here once a production embedding dimension is
+-- locked and the column is pinned to vector(N).
 
 CREATE INDEX IF NOT EXISTS rag_docs_metadata_idx ON rag_docs USING GIN (metadata);

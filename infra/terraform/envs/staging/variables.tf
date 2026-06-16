@@ -42,3 +42,14 @@ variable "repo_url" {
   description = "Repo URL for tagging"
   type        = string
 }
+
+variable "broker_provider" {
+  description = "Sidecar broker backend: metaapi (default/prod), fake (safe-mode/rollback), mt5 (legacy)."
+  type        = string
+  default     = "metaapi"
+
+  validation {
+    condition     = contains(["metaapi", "mt5", "fake"], var.broker_provider)
+    error_message = "broker_provider must be one of: metaapi, mt5, fake."
+  }
+}

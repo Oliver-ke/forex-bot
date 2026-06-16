@@ -1,5 +1,10 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
+import {
+  type JSONSchema,
+  transformJSONSchema,
+} from "@anthropic-ai/sdk/lib/transform-json-schema.js";
+import type { ZodSchema } from "zod";
+import { zodToJsonSchema } from "zod-to-json-schema";
 import type { LlmProvider } from "./provider.js";
 import {
   LlmRefusalError,
@@ -27,6 +32,39 @@ interface ParsedMessageResponse {
   usage: MessageUsage;
   parsed_output: unknown;
   content: unknown;
+}
+
+/**
+ * Build an Anthropic `json_schema` output format from a Zod v3 schema.
+ *
+ * Mirrors the SDK's `zodOutputFormat`, but that helper imports `zod/v4` and
+ * calls `z.toJSONSchema`, which throws `Cannot read properties of undefined
+ * (reading 'def')` on our zod v3 schemas (v3 keeps its internals under `._def`,
+ * v4 under `.def`). We build the JSON schema with `zod-to-json-schema` (v3),
+ * run it through the SDK's own `transformJSONSchema` for Anthropic
+ * compatibility, and validate the response with the v3 schema. `messages.parse`
+ * calls `format.parse(content)` to populate `parsed_output`.
+ */
+function zodV3OutputFormat<T>(schema: ZodSchema<T>) {
+  const jsonSchema = transformJSONSchema(zodToJsonSchema(schema) as JSONSchema);
+  return {
+    type: "json_schema" as const,
+    schema: jsonSchema,
+    parse: (content: string): T => {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(content);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        throw new Error(`Failed to parse structured output as JSON: ${msg}`);
+      }
+      const out = schema.safeParse(parsed);
+      if (!out.success) {
+        throw new Error(`structured output failed schema validation: ${out.error.message}`);
+      }
+      return out.data;
+    },
+  };
 }
 
 export class AnthropicLlm implements LlmProvider {
@@ -60,7 +98,7 @@ export class AnthropicLlm implements LlmProvider {
             : { thinking: { type: "disabled" } }),
           output_config: {
             effort,
-            format: zodOutputFormat(req.schema),
+            format: zodV3OutputFormat(req.schema),
             // biome-ignore lint/suspicious/noExplicitAny: SDK types lag public API for output_config
           } as any,
           // biome-ignore lint/suspicious/noExplicitAny: see above

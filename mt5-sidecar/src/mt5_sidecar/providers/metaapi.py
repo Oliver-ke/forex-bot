@@ -48,7 +48,12 @@ class MetaApiProvider:
         self._init_kwargs = {"token": token, "account_id": acct_id, "region": region}
 
         self._loop = asyncio.new_event_loop()
-        self._api = MetaApi(token=token, opts={"region": region})
+        asyncio.set_event_loop(self._loop)
+        # MetaApi's constructor schedules an asyncio task, so it must be built
+        # while the loop is running. Construct it via the loop (run_until_complete)
+        # rather than synchronously — otherwise it raises
+        # "RuntimeError: no running event loop".
+        self._api = self._run(self._make_api(token, region))
         self._account = self._run(
             self._api.metatrader_account_api.get_account(acct_id)
         )
@@ -180,6 +185,10 @@ class MetaApiProvider:
             "ticket": str(result["orderId"]),
             "fill_price": float(result.get("price", 0)),
         }
+
+    async def _make_api(self, token: str, region: str) -> MetaApi:
+        """Construct MetaApi inside the running loop (its __init__ schedules a task)."""
+        return MetaApi(token=token, opts={"region": region})
 
     # --- Async-to-sync bridge -------------------------------------------------
     def _run(self, coro: Any) -> Any:

@@ -49,19 +49,21 @@ class MetaApiProvider:
 
         self._loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self._loop)
-        # MetaApi's constructor schedules an asyncio task, so it must be built
-        # while the loop is running. Construct it via the loop (run_until_complete)
-        # rather than synchronously — otherwise it raises
-        # "RuntimeError: no running event loop".
-        self._api = self._run(self._make_api(token, region))
-        self._account = self._run(
-            self._api.metatrader_account_api.get_account(acct_id)
-        )
-        self._run(self._account.deploy())
-        self._run(self._account.wait_connected())
+        # Run the whole bootstrap inside the loop. Several SDK objects
+        # (MetaApi, the streaming connection) schedule asyncio tasks in their
+        # constructors, so they must be built while the loop is running —
+        # otherwise they raise "RuntimeError: no running event loop". Doing it
+        # all in one coroutine guarantees a running loop for every step.
+        self._run(self._bootstrap(token, acct_id, region))
+
+    async def _bootstrap(self, token: str, acct_id: str, region: str) -> None:
+        self._api = MetaApi(token=token, opts={"region": region})
+        self._account = await self._api.metatrader_account_api.get_account(acct_id)
+        await self._account.deploy()
+        await self._account.wait_connected()
         self._connection = self._account.get_streaming_connection()
-        self._run(self._connection.connect())
-        self._run(self._connection.wait_synchronized())
+        await self._connection.connect()
+        await self._connection.wait_synchronized()
 
     def shutdown(self) -> None:
         try:
@@ -185,10 +187,6 @@ class MetaApiProvider:
             "ticket": str(result["orderId"]),
             "fill_price": float(result.get("price", 0)),
         }
-
-    async def _make_api(self, token: str, region: str) -> MetaApi:
-        """Construct MetaApi inside the running loop (its __init__ schedules a task)."""
-        return MetaApi(token=token, opts={"region": region})
 
     # --- Async-to-sync bridge -------------------------------------------------
     def _run(self, coro: Any) -> Any:

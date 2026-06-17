@@ -21,6 +21,11 @@ from typing import Any
 class _FakeConnection:
     synchronized = True
 
+    def __init__(self) -> None:
+        # The real StreamingMetaApiConnection constructor also schedules an
+        # asyncio task, so it likewise requires a running loop.
+        asyncio.get_running_loop()
+
     async def connect(self) -> None:
         return None
 

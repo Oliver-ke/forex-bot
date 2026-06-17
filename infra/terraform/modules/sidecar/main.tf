@@ -31,6 +31,27 @@ resource "aws_iam_role_policy_attachment" "task_secrets_read" {
   policy_arn = var.secrets_read_policy_arn
 }
 
+# Required for `aws ecs execute-command` (the service sets
+# enable_execute_command = true). Without these the SSM agent in the task can't
+# open a channel and exec fails with TargetNotConnected.
+resource "aws_iam_role_policy" "task_ecs_exec" {
+  name = "${local.name_prefix}-mt5-sidecar-ecs-exec"
+  role = aws_iam_role.task.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "ssmmessages:CreateControlChannel",
+        "ssmmessages:CreateDataChannel",
+        "ssmmessages:OpenControlChannel",
+        "ssmmessages:OpenDataChannel",
+      ]
+      Resource = "*"
+    }]
+  })
+}
+
 data "aws_region" "current" {}
 
 resource "aws_ecs_task_definition" "sidecar" {

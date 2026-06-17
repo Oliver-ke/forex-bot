@@ -6,11 +6,13 @@ import {
   type RiskDecision,
   type StateBundle,
   type Symbol,
+  type TradeJournal,
   defaultRiskConfig,
 } from "@forex-bot/contracts";
-import type { HotCache } from "@forex-bot/data-core";
+import { type HotCache, InMemoryJournalStore, type JournalStore } from "@forex-bot/data-core";
 import type { Trade } from "@forex-bot/eval-core";
 import { AnthropicLlm, type LlmProvider, type StructuredRequest } from "@forex-bot/llm-provider";
+import { DynamoJournalStore } from "@forex-bot/memory";
 import { CorrelationMatrix, type GateContext, KillSwitch } from "@forex-bot/risk";
 import { Logger } from "@forex-bot/telemetry";
 import {
@@ -32,6 +34,9 @@ export interface PaperConfig {
   pollMs: number;
   paperBudgetUsd: number;
   paperOutDir: string;
+  /** DynamoDB trade-journal table; empty → journal to memory only (local dev). */
+  journalTable: string;
+  awsRegion: string;
 }
 
 export function readConfig(): PaperConfig {
@@ -66,6 +71,8 @@ export function readConfig(): PaperConfig {
     pollMs: Number(process.env.POLL_MS ?? 60_000),
     paperBudgetUsd,
     paperOutDir: process.env.PAPER_OUT_DIR ?? "./paper-out",
+    journalTable: process.env.JOURNAL_TABLE ?? "",
+    awsRegion: process.env.AWS_REGION ?? "eu-west-2",
   };
 }
 
@@ -185,6 +192,7 @@ export interface PaperRunnerDeps {
   llm: LlmProvider;
   budget: BudgetTracker;
   writer: MetricsWriter;
+  journal: JournalStore;
   log: Logger;
   watchedSymbols: readonly Symbol[];
   consensusThreshold: number;
@@ -261,6 +269,25 @@ export async function runIteration(
           state.cumulativeTrades.push(trade);
           state.sessions.set(trade, "london");
           state.regimes.set(trade, result.bundle.regimePrior.label);
+          // Durable, queryable record of the trade in the DynamoDB journal.
+          if (result.verdict) {
+            const entry: TradeJournal = {
+              tradeId: `${symbol}-${nowMs}`,
+              symbol,
+              openedAt: nowMs,
+              ...(result.analysts ? { analysts: [...result.analysts] } : {}),
+              verdict: result.verdict,
+              risk: result.decision,
+            };
+            try {
+              await deps.journal.put(entry);
+            } catch (e) {
+              const msg = e instanceof Error ? e.message : String(e);
+              deps.log.error("journal write failed", { tradeId: entry.tradeId, err: msg });
+            }
+          } else {
+            deps.log.warn("approved trade has no verdict; skipping journal write", { symbol });
+          }
         } else {
           state.decisions.vetoed += 1;
         }
@@ -326,6 +353,11 @@ export async function main(): Promise<void> {
 
   const writer = new MetricsWriter({ outDir: cfg.paperOutDir });
 
+  // DynamoDB journal when JOURNAL_TABLE is set (deployed); in-memory locally.
+  const journal: JournalStore = cfg.journalTable
+    ? new DynamoJournalStore({ tableName: cfg.journalTable, region: cfg.awsRegion })
+    : new InMemoryJournalStore();
+
   log.info("paper-runner started", {
     symbols: cfg.watchedSymbols,
     pollMs: cfg.pollMs,
@@ -339,6 +371,7 @@ export async function main(): Promise<void> {
     llm,
     budget,
     writer,
+    journal,
     log,
     watchedSymbols: cfg.watchedSymbols,
     consensusThreshold: defaultRiskConfig.agent.consensusThreshold,

@@ -9,7 +9,7 @@ import {
   type Symbol,
   defaultRiskConfig,
 } from "@forex-bot/contracts";
-import { InMemoryHotCache } from "@forex-bot/data-core";
+import { InMemoryHotCache, InMemoryJournalStore } from "@forex-bot/data-core";
 import { FakeLlm, type LlmUsage, type StructuredRequest } from "@forex-bot/llm-provider";
 import { CorrelationMatrix, type GateContext, KillSwitch } from "@forex-bot/risk";
 import { Logger } from "@forex-bot/telemetry";
@@ -208,25 +208,28 @@ describe("paper-runner runIteration integration", () => {
     const writer = new MetricsWriter({ outDir: dir });
     const log = new Logger({ base: { service: "paper-runner-test" } });
 
+    const journal = new InMemoryJournalStore();
+
     const deps: PaperRunnerDeps = {
       broker,
       cache,
       llm,
       budget,
       writer,
+      journal,
       log,
       watchedSymbols: [symbol],
       consensusThreshold: 0.7,
       buildGateContext: buildGateContextForTest,
     };
 
-    return { deps, broker, cache, llm, budget, writer };
+    return { deps, broker, cache, llm, budget, writer, journal };
   }
 
   it("3 ticks fire, decisions counter increments, approved trade accumulates", async () => {
     // Anchor at 2026-03-15 12:00 UTC so we don't cross a day boundary in the loop.
     const startMs = Date.UTC(2026, 2, 15, 12, 0, 0);
-    const { deps, llm, budget } = await buildHarness({ startMs });
+    const { deps, llm, budget, journal } = await buildHarness({ startMs });
 
     // Note: FakeLlm does NOT call onUsage by default, so the BudgetWrappedLlm
     // wrapper is bypassed in this test. We instead simulate spend by calling
@@ -252,6 +255,11 @@ describe("paper-runner runIteration integration", () => {
     expect(state.decisions.ticks).toBe(3);
     expect(state.decisions.approved).toBeGreaterThanOrEqual(1);
     expect(state.cumulativeTrades.length).toBe(state.decisions.approved);
+    // Every approved trade is durably journaled with a real verdict + risk.
+    const journaled = await journal.list({ limit: 100 });
+    expect(journaled.items.length).toBe(state.decisions.approved);
+    expect(journaled.items[0]?.verdict).toBeDefined();
+    expect(journaled.items[0]?.risk.approve).toBe(true);
     // 3 × ($3 input + $1.50 output) = $13.50
     expect(budget.spendUsd).toBeCloseTo(13.5, 5);
     expect(budget.tripped).toBe(false);

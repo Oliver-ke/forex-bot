@@ -46,7 +46,12 @@ interface ParsedMessageResponse {
  * calls `format.parse(content)` to populate `parsed_output`.
  */
 function zodV3OutputFormat<T>(schema: ZodSchema<T>) {
-  const jsonSchema = transformJSONSchema(zodToJsonSchema(schema) as JSONSchema);
+  // $refStrategy: "none" inlines all subschemas. Anthropic's structured-output
+  // validator rejects $ref targets that aren't under $defs (e.g. zod unions emit
+  // refs like "#/anyOf/0/properties/sl"), so we avoid refs entirely.
+  const jsonSchema = transformJSONSchema(
+    zodToJsonSchema(schema, { $refStrategy: "none" }) as JSONSchema,
+  );
   return {
     type: "json_schema" as const,
     schema: jsonSchema,

@@ -61,7 +61,12 @@ class MetaApiProvider:
         self._account = await self._api.metatrader_account_api.get_account(acct_id)
         await self._account.deploy()
         await self._account.wait_connected()
-        self._connection = self._account.get_streaming_connection()
+        # RPC connection (not streaming): the data/order methods this provider
+        # calls — get_account_information, get_symbol_price, get_positions,
+        # create_market_*_order — live on the RPC connection. The streaming
+        # connection exposes that data via terminal_state instead and would
+        # raise AttributeError on these calls.
+        self._connection = self._account.get_rpc_connection()
         await self._connection.connect()
         await self._connection.wait_synchronized()
 
@@ -78,10 +83,12 @@ class MetaApiProvider:
             pass
 
     def is_alive(self) -> bool:
+        # The RPC connection has no `synchronized` property; use the account's
+        # broker connection status (CONNECTED/DISCONNECTED) as the liveness signal.
         try:
-            if self._connection is None:
+            if self._connection is None or self._account is None:
                 return False
-            return bool(self._connection.synchronized)
+            return "CONNECTED" in str(getattr(self._account, "connection_status", "")).upper()
         except Exception:
             return False
 

@@ -1,5 +1,12 @@
 import type { Broker } from "@forex-bot/broker-core";
-import type { RiskDecision, StateBundle, Symbol, TickTrigger } from "@forex-bot/contracts";
+import type {
+  AnalystOutput,
+  RiskDecision,
+  StateBundle,
+  Symbol,
+  TickTrigger,
+  Verdict,
+} from "@forex-bot/contracts";
 import type { HotCache } from "@forex-bot/data-core";
 import { buildGraph } from "@forex-bot/graph";
 import type { LlmProvider } from "@forex-bot/llm-provider";
@@ -21,6 +28,10 @@ export interface TickInput {
 export interface TickResult {
   bundle: StateBundle;
   decision: RiskDecision;
+  /** Consensus verdict from the graph (for journaling). */
+  verdict?: Verdict;
+  /** Per-analyst outputs from the graph (for journaling). */
+  analysts?: readonly AnalystOutput[];
 }
 
 export async function tick(input: TickInput): Promise<TickResult> {
@@ -36,5 +47,10 @@ export async function tick(input: TickInput): Promise<TickResult> {
   const out = await graph.invoke({ bundle, gateContext });
   const decision = out.finalDecision ?? out.tentativeDecision;
   if (!decision) throw new Error("graph produced no decision");
-  return { bundle, decision };
+  return {
+    bundle,
+    decision,
+    ...(out.verdict ? { verdict: out.verdict } : {}),
+    ...(out.analysts ? { analysts: out.analysts } : {}),
+  };
 }

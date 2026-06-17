@@ -19,6 +19,7 @@
     "@forex-bot/data-core": "workspace:*",
     "@forex-bot/eval-core": "workspace:*",
     "@forex-bot/llm-provider": "workspace:*",
+    "@forex-bot/memory": "workspace:*",
     "@forex-bot/risk": "workspace:*",
     "@forex-bot/telemetry": "workspace:*"
   }

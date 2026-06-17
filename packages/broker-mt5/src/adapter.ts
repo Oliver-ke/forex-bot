@@ -50,13 +50,33 @@ export class MT5Broker implements Broker {
   constructor(
     private readonly client: MT5Client,
     public readonly isDemo: boolean = false,
+    /**
+     * Broker-specific symbol suffix (e.g. Exness uses "m": EURUSD → EURUSDm).
+     * The domain stays canonical 6-char (SymbolSchema); we append the suffix on
+     * outbound requests and strip it from inbound symbols. Empty = no mapping.
+     */
+    private readonly symbolSuffix: string = "",
   ) {}
+
+  /** Domain symbol → broker symbol (append suffix). */
+  private toBroker(symbol: Symbol): string {
+    return this.symbolSuffix ? `${symbol}${this.symbolSuffix}` : symbol;
+  }
+
+  /** Broker symbol → domain symbol (strip suffix). */
+  private fromBroker(symbol: string): Symbol {
+    const s =
+      this.symbolSuffix && symbol.endsWith(this.symbolSuffix)
+        ? symbol.slice(0, -this.symbolSuffix.length)
+        : symbol;
+    return s as Symbol;
+  }
 
   async getQuote(symbol: Symbol): Promise<Tick> {
     const t: ProtoTick = await unary<{ symbol: string }, ProtoTick>((req, cb) =>
       this.client.getQuote(req, cb),
-    )({ symbol });
-    return { ts: Number(t.ts), symbol: t.symbol as Symbol, bid: t.bid, ask: t.ask };
+    )({ symbol: this.toBroker(symbol) });
+    return { ts: Number(t.ts), symbol: this.fromBroker(t.symbol), bid: t.bid, ask: t.ask };
   }
 
   async getCandles(
@@ -68,7 +88,7 @@ export class MT5Broker implements Broker {
       { symbol: string; timeframe: number; limit: number },
       CandlesResponse
     >((req, cb) => this.client.getCandles(req, cb))({
-      symbol,
+      symbol: this.toBroker(symbol),
       timeframe: tfToProto(timeframe),
       limit,
     });
@@ -103,7 +123,7 @@ export class MT5Broker implements Broker {
     )({});
     return r.positions.map((p) => ({
       id: p.id,
-      symbol: p.symbol as Symbol,
+      symbol: this.fromBroker(p.symbol),
       side: sideFromProto(p.side as ProtoSide),
       lotSize: p.lotSize,
       entry: p.entry,
@@ -120,7 +140,7 @@ export class MT5Broker implements Broker {
     const r: PlaceOrderResponse = await unary<unknown, PlaceOrderResponse>((rq, cb) =>
       this.client.placeOrder(rq as never, cb),
     )({
-      symbol: req.symbol,
+      symbol: this.toBroker(req.symbol),
       side: sideToProto(req.side),
       lotSize: req.lotSize,
       type: ProtoOrderType.ORDER_TYPE_MARKET,
@@ -154,9 +174,9 @@ export class MT5Broker implements Broker {
   }
 
   async *streamTicks(symbols: readonly Symbol[]): AsyncIterable<Tick> {
-    const stream = this.client.streamTicks({ symbols: [...symbols] });
+    const stream = this.client.streamTicks({ symbols: symbols.map((s) => this.toBroker(s)) });
     for await (const t of stream as AsyncIterable<ProtoTick>) {
-      yield { ts: Number(t.ts), symbol: t.symbol as Symbol, bid: t.bid, ask: t.ask };
+      yield { ts: Number(t.ts), symbol: this.fromBroker(t.symbol), bid: t.bid, ask: t.ask };
     }
   }
 }

@@ -310,7 +310,11 @@ export async function main(): Promise<void> {
   const cfg = readConfig();
   const log = new Logger({ base: { service: "paper-runner" } });
 
-  const broker = new MT5Broker(createMT5Client({ host: cfg.mt5Host, port: cfg.mt5Port }), true);
+  const broker = new MT5Broker(
+    createMT5Client({ host: cfg.mt5Host, port: cfg.mt5Port }),
+    true,
+    process.env.BROKER_SYMBOL_SUFFIX ?? "",
+  );
   assertDemoBroker(broker);
 
   const cache = new RedisHotCache({ url: cfg.redisUrl, namespace: cfg.redisNamespace });

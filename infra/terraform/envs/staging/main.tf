@@ -128,10 +128,13 @@ module "paper_runner" {
     REDIS_URL        = "redis://${module.data.redis_endpoint}:${module.data.redis_port}"
     REDIS_NAMESPACE  = "forex-bot"
     WATCHED_SYMBOLS  = "EURUSD,USDJPY"
-    POLL_MS          = "60000"
-    JOURNAL_TABLE    = module.data.journal_table_name
-    KILLSWITCH_TABLE = module.data.killswitch_table_name
-    AWS_REGION       = "eu-west-2"
+    # Exness demo (Exness-MT5Trial9) suffixes symbols with "m": EURUSD -> EURUSDm.
+    # WATCHED_SYMBOLS stays canonical; the broker adapter appends/strips the suffix.
+    BROKER_SYMBOL_SUFFIX = "m"
+    POLL_MS              = "60000"
+    JOURNAL_TABLE        = module.data.journal_table_name
+    KILLSWITCH_TABLE     = module.data.killswitch_table_name
+    AWS_REGION           = "eu-west-2"
   }
   extra_iam_policy_arns = [
     module.data.journal_rw_policy_arn,

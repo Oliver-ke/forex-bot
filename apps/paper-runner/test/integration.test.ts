@@ -209,6 +209,7 @@ describe("paper-runner runIteration integration", () => {
     const log = new Logger({ base: { service: "paper-runner-test" } });
 
     const journal = new InMemoryJournalStore();
+    const decisions = new InMemoryJournalStore();
 
     const deps: PaperRunnerDeps = {
       broker,
@@ -217,19 +218,20 @@ describe("paper-runner runIteration integration", () => {
       budget,
       writer,
       journal,
+      decisions,
       log,
       watchedSymbols: [symbol],
       consensusThreshold: 0.7,
       buildGateContext: buildGateContextForTest,
     };
 
-    return { deps, broker, cache, llm, budget, writer, journal };
+    return { deps, broker, cache, llm, budget, writer, journal, decisions };
   }
 
   it("3 ticks fire, decisions counter increments, approved trade accumulates", async () => {
     // Anchor at 2026-03-15 12:00 UTC so we don't cross a day boundary in the loop.
     const startMs = Date.UTC(2026, 2, 15, 12, 0, 0);
-    const { deps, llm, budget, journal } = await buildHarness({ startMs });
+    const { deps, llm, budget, journal, decisions } = await buildHarness({ startMs });
 
     // Note: FakeLlm does NOT call onUsage by default, so the BudgetWrappedLlm
     // wrapper is bypassed in this test. We instead simulate spend by calling
@@ -255,11 +257,14 @@ describe("paper-runner runIteration integration", () => {
     expect(state.decisions.ticks).toBe(3);
     expect(state.decisions.approved).toBeGreaterThanOrEqual(1);
     expect(state.cumulativeTrades.length).toBe(state.decisions.approved);
-    // Every approved trade is durably journaled with a real verdict + risk.
+    // Trade journal holds only approved trades.
     const journaled = await journal.list({ limit: 100 });
     expect(journaled.items.length).toBe(state.decisions.approved);
     expect(journaled.items[0]?.verdict).toBeDefined();
     expect(journaled.items[0]?.risk.approve).toBe(true);
+    // Decisions stream holds every decision (approved + vetoed).
+    const allDecisions = await decisions.list({ limit: 100 });
+    expect(allDecisions.items.length).toBe(state.decisions.approved + state.decisions.vetoed);
     // 3 × ($3 input + $1.50 output) = $13.50
     expect(budget.spendUsd).toBeCloseTo(13.5, 5);
     expect(budget.tripped).toBe(false);

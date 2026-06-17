@@ -37,3 +37,11 @@ output "journal_rw_policy_arn" {
 output "killswitch_rw_policy_arn" {
   value = aws_iam_policy.killswitch_rw.arn
 }
+
+output "decisions_table_name" {
+  value = aws_dynamodb_table.decisions.name
+}
+
+output "decisions_rw_policy_arn" {
+  value = aws_iam_policy.decisions_rw.arn
+}

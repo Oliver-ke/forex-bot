@@ -129,6 +129,52 @@ resource "aws_iam_policy" "journal_rw" {
   policy      = data.aws_iam_policy_document.journal_rw.json
 }
 
+# Full decision stream (every tick: approved + vetoed). Kept separate from the
+# trade-journal so "trades" stays pure. Same key (tradeId) so DynamoJournalStore
+# works against it unchanged.
+resource "aws_dynamodb_table" "decisions" {
+  name         = "${local.name_prefix}-decisions"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "tradeId"
+
+  attribute {
+    name = "tradeId"
+    type = "S"
+  }
+
+  point_in_time_recovery { enabled = true }
+  server_side_encryption { enabled = true }
+
+  tags = merge(var.common_tags, { Name = "${local.name_prefix}-decisions" })
+}
+
+data "aws_iam_policy_document" "decisions_rw" {
+  statement {
+    sid    = "DecisionsRW"
+    effect = "Allow"
+    actions = [
+      "dynamodb:GetItem",
+      "dynamodb:PutItem",
+      "dynamodb:UpdateItem",
+      "dynamodb:DeleteItem",
+      "dynamodb:Query",
+      "dynamodb:Scan",
+      "dynamodb:BatchGetItem",
+      "dynamodb:BatchWriteItem",
+    ]
+    resources = [
+      aws_dynamodb_table.decisions.arn,
+      "${aws_dynamodb_table.decisions.arn}/index/*",
+    ]
+  }
+}
+
+resource "aws_iam_policy" "decisions_rw" {
+  name        = "${local.name_prefix}-decisions-rw"
+  description = "Read/write on decisions DynamoDB table"
+  policy      = data.aws_iam_policy_document.decisions_rw.json
+}
+
 data "aws_iam_policy_document" "killswitch_rw" {
   statement {
     sid    = "KillSwitchRW"

@@ -36,6 +36,8 @@ export interface PaperConfig {
   paperOutDir: string;
   /** DynamoDB trade-journal table; empty → journal to memory only (local dev). */
   journalTable: string;
+  /** DynamoDB decisions table (every tick: approved + vetoed); empty → memory. */
+  decisionsTable: string;
   awsRegion: string;
 }
 
@@ -72,6 +74,7 @@ export function readConfig(): PaperConfig {
     paperBudgetUsd,
     paperOutDir: process.env.PAPER_OUT_DIR ?? "./paper-out",
     journalTable: process.env.JOURNAL_TABLE ?? "",
+    decisionsTable: process.env.DECISIONS_TABLE ?? "",
     awsRegion: process.env.AWS_REGION ?? "eu-west-2",
   };
 }
@@ -193,6 +196,8 @@ export interface PaperRunnerDeps {
   budget: BudgetTracker;
   writer: MetricsWriter;
   journal: JournalStore;
+  /** Full decision stream — every tick (approved + vetoed). */
+  decisions: JournalStore;
   log: Logger;
   watchedSymbols: readonly Symbol[];
   consensusThreshold: number;
@@ -263,33 +268,36 @@ export async function runIteration(
           buildGateContext: () => deps.buildGateContext(nowMs, account, symbol),
         });
         state.decisions.ticks += 1;
-        if (result.decision.approve) {
+        const approved = result.decision.approve;
+        if (approved) {
           state.decisions.approved += 1;
           const trade = synthesizeTrade(nowMs, result.bundle, result.decision);
           state.cumulativeTrades.push(trade);
           state.sessions.set(trade, "london");
           state.regimes.set(trade, result.bundle.regimePrior.label);
-          // Durable, queryable record of the trade in the DynamoDB journal.
-          if (result.verdict) {
-            const entry: TradeJournal = {
-              tradeId: `${symbol}-${nowMs}`,
-              symbol,
-              openedAt: nowMs,
-              ...(result.analysts ? { analysts: [...result.analysts] } : {}),
-              verdict: result.verdict,
-              risk: result.decision,
-            };
-            try {
-              await deps.journal.put(entry);
-            } catch (e) {
-              const msg = e instanceof Error ? e.message : String(e);
-              deps.log.error("journal write failed", { tradeId: entry.tradeId, err: msg });
-            }
-          } else {
-            deps.log.warn("approved trade has no verdict; skipping journal write", { symbol });
-          }
         } else {
           state.decisions.vetoed += 1;
+        }
+        // Durable records: every decision → decisions stream; approved → trade
+        // journal. Both reuse the TradeJournal shape (risk captures the veto).
+        if (result.verdict) {
+          const entry: TradeJournal = {
+            tradeId: `${symbol}-${nowMs}`,
+            symbol,
+            openedAt: nowMs,
+            ...(result.analysts ? { analysts: [...result.analysts] } : {}),
+            verdict: result.verdict,
+            risk: result.decision,
+          };
+          try {
+            await deps.decisions.put(entry);
+            if (approved) await deps.journal.put(entry);
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            deps.log.error("decision/journal write failed", { tradeId: entry.tradeId, err: msg });
+          }
+        } else {
+          deps.log.warn("decision has no verdict; skipping record", { symbol });
         }
         deps.log.info("tick complete", {
           symbol,
@@ -353,9 +361,12 @@ export async function main(): Promise<void> {
 
   const writer = new MetricsWriter({ outDir: cfg.paperOutDir });
 
-  // DynamoDB journal when JOURNAL_TABLE is set (deployed); in-memory locally.
+  // DynamoDB stores when the table envs are set (deployed); in-memory locally.
   const journal: JournalStore = cfg.journalTable
     ? new DynamoJournalStore({ tableName: cfg.journalTable, region: cfg.awsRegion })
+    : new InMemoryJournalStore();
+  const decisions: JournalStore = cfg.decisionsTable
+    ? new DynamoJournalStore({ tableName: cfg.decisionsTable, region: cfg.awsRegion })
     : new InMemoryJournalStore();
 
   log.info("paper-runner started", {
@@ -372,6 +383,7 @@ export async function main(): Promise<void> {
     budget,
     writer,
     journal,
+    decisions,
     log,
     watchedSymbols: cfg.watchedSymbols,
     consensusThreshold: defaultRiskConfig.agent.consensusThreshold,

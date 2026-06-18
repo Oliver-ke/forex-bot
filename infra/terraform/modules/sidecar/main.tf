@@ -145,7 +145,9 @@ resource "aws_ecs_service" "sidecar" {
   }
 
   lifecycle {
-    ignore_changes = [task_definition]
+    # desired_count is managed at runtime (CD force-new-deployment) and by the
+    # market-hours scheduled scaling (App Auto Scaling), so Terraform ignores it.
+    ignore_changes = [task_definition, desired_count]
   }
 
   tags = merge(var.common_tags, { Name = "${local.name_prefix}-mt5-sidecar-svc" })

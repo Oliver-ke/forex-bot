@@ -1,5 +1,11 @@
 import type { Broker } from "@forex-bot/broker-core";
-import type { AnalystOutput, RiskDecision, StateBundle, Symbol } from "@forex-bot/contracts";
+import type {
+  AnalystOutput,
+  RiskDecision,
+  StateBundle,
+  Symbol,
+  Verdict,
+} from "@forex-bot/contracts";
 import type { HotCache, JournalStore } from "@forex-bot/data-core";
 import type { Trade } from "@forex-bot/eval-core";
 import type { LlmProvider } from "@forex-bot/llm-provider";
@@ -20,6 +26,8 @@ export interface OpenIntent {
   pipValuePerLot: number;
   /** Per-analyst outputs from the tick graph — carried through for journal parity. */
   analysts?: readonly AnalystOutput[];
+  /** Full graph verdict — carried through so the trade journal matches the decisions stream. */
+  verdict?: Verdict;
 }
 
 export interface Executor {

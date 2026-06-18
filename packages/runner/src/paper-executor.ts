@@ -96,7 +96,7 @@ export class PaperExecutor implements Executor {
       m.D1.at(-1)?.close ??
       (side === "buy" ? decision.sl + 1 : decision.sl - 1);
 
-    const verdict: Trade["verdict"] = {
+    const verdict: Trade["verdict"] = intent.verdict ?? {
       direction: side === "buy" ? "long" : "short",
       confidence: 0.7,
       horizon: "H1",

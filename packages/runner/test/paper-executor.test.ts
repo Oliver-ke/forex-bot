@@ -5,7 +5,15 @@ import type {
   PlaceOrderRequest,
   PlaceOrderResult,
 } from "@forex-bot/broker-core";
-import type { AccountState, Candle, Position, Symbol, Tick, Timeframe } from "@forex-bot/contracts";
+import type {
+  AccountState,
+  Candle,
+  Position,
+  Symbol,
+  Tick,
+  Timeframe,
+  Verdict,
+} from "@forex-bot/contracts";
 import { describe, expect, it } from "vitest";
 import { PaperExecutor } from "../src/paper-executor.js";
 import type { OpenIntent } from "../src/types.js";
@@ -66,6 +74,7 @@ function makeIntent(
   sl = 1.079,
   tp = 1.082,
   analysts?: OpenIntent["analysts"],
+  verdict?: Verdict,
 ): OpenIntent {
   const decision = {
     approve: true as const,
@@ -114,6 +123,7 @@ function makeIntent(
     bundle,
     pipValuePerLot: 10,
     ...(analysts ? { analysts } : {}),
+    ...(verdict ? { verdict } : {}),
   };
 }
 
@@ -279,5 +289,55 @@ describe("PaperExecutor", () => {
     expect(closed[0]?.analysts).toBeDefined();
     expect(closed[0]?.analysts?.length).toBe(1);
     expect(closed[0]?.analysts?.[0]?.source).toBe("technical");
+  });
+
+  it("verdict parity: real graph verdict on the OpenIntent flows through onto the ClosedTrade (not the 0.7 placeholder)", async () => {
+    const afterOpen = BASE_TS + 60_000;
+    // TP-closing candle: high >= 1.082, low does NOT touch sl 1.079
+    const candles = [bar(afterOpen, 1.082, { high: 1.082, low: 1.081 })];
+
+    const broker = makeBroker(candles);
+    const exec = new PaperExecutor(broker);
+
+    const realVerdict: Verdict = {
+      direction: "long",
+      confidence: 0.93,
+      horizon: "H1",
+      reasoning: "REAL",
+      debated: true,
+    };
+    const intent = makeIntent(BASE_TS, 1.079, 1.082, undefined, realVerdict);
+    await exec.open(intent);
+
+    const closed = await exec.reconcile(BASE_TS + 120_000);
+    expect(closed.length).toBe(1);
+    const trade = closed[0];
+    expect(trade).toBeDefined();
+    if (!trade) return;
+
+    // The real verdict must be preserved — NOT the synthesised 0.7 placeholder.
+    expect(trade.verdict.confidence).toBe(0.93);
+    expect(trade.verdict.reasoning).toBe("REAL");
+  });
+
+  it("verdict fallback: no verdict on OpenIntent → closed trade uses placeholder (confidence===0.7)", async () => {
+    const afterOpen = BASE_TS + 60_000;
+    const candles = [bar(afterOpen, 1.082, { high: 1.082, low: 1.081 })];
+
+    const broker = makeBroker(candles);
+    const exec = new PaperExecutor(broker);
+
+    // No verdict supplied — makeIntent omits it
+    const intent = makeIntent(BASE_TS);
+    await exec.open(intent);
+
+    const closed = await exec.reconcile(BASE_TS + 120_000);
+    expect(closed.length).toBe(1);
+    const trade = closed[0];
+    expect(trade).toBeDefined();
+    if (!trade) return;
+
+    // Falls back to synthesised placeholder
+    expect(trade.verdict.confidence).toBe(0.7);
   });
 });

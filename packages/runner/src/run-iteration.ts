@@ -125,6 +125,7 @@ export async function runIteration(
                 decision: result.decision,
                 bundle: result.bundle,
                 pipValuePerLot,
+                verdict: result.verdict,
                 ...(result.analysts ? { analysts: result.analysts } : {}),
               });
             }

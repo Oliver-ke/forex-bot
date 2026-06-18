@@ -28,7 +28,7 @@ export class LegacyPaperExecutor implements Executor {
   /** All trades ever opened — retained for the daily-metrics flush. */
   private readonly _trades: Trade[] = [];
   /** Trades opened since the last reconcile() call — flushed on reconcile. */
-  private _pending: Trade[] = [];
+  private _pending: ClosedTrade[] = [];
   private readonly _sessions = new Map<Trade, SessionKey>();
   private readonly _regimes = new Map<Trade, RegimeKey>();
 
@@ -45,10 +45,10 @@ export class LegacyPaperExecutor implements Executor {
   }
 
   async open(intent: OpenIntent): Promise<boolean> {
-    const { symbol, now, decision, bundle } = intent;
+    const { symbol, now, decision, bundle, analysts } = intent;
     const lastClose = bundle.market.H1.at(-1)?.close ?? (decision.sl + decision.tp) / 2;
     const mid = lastClose;
-    const trade: Trade = {
+    const trade: ClosedTrade = {
       symbol,
       openedAt: now,
       closedAt: now,
@@ -68,6 +68,7 @@ export class LegacyPaperExecutor implements Executor {
         reasoning: "paper-runner placeholder verdict",
       },
       decision,
+      ...(analysts ? { analysts } : {}),
     };
     this._trades.push(trade);
     this._pending.push(trade);

@@ -1,11 +1,15 @@
 import type { Broker } from "@forex-bot/broker-core";
-import type { RiskDecision, StateBundle, Symbol } from "@forex-bot/contracts";
+import type { AnalystOutput, RiskDecision, StateBundle, Symbol } from "@forex-bot/contracts";
 import type { HotCache, JournalStore } from "@forex-bot/data-core";
 import type { Trade } from "@forex-bot/eval-core";
 import type { LlmProvider } from "@forex-bot/llm-provider";
 import type { GateContext } from "@forex-bot/risk";
 
-export type ClosedTrade = Trade; // eval-core Trade: real pnl/realizedR/exitReason/verdict/decision
+/** eval-core Trade extended with optional analyst outputs for journal parity. */
+export interface ClosedTrade extends Trade {
+  /** Per-analyst outputs from the tick graph — present on paper-executor trades. */
+  analysts?: readonly AnalystOutput[];
+}
 
 /** When a tick approves, the harness asks the executor to open. */
 export interface OpenIntent {
@@ -14,6 +18,8 @@ export interface OpenIntent {
   decision: Extract<RiskDecision, { approve: true }>;
   bundle: StateBundle;
   pipValuePerLot: number;
+  /** Per-analyst outputs from the tick graph — carried through for journal parity. */
+  analysts?: readonly AnalystOutput[];
 }
 
 export interface Executor {

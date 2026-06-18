@@ -278,6 +278,8 @@ describe("paper-runner runIteration integration", () => {
     expect(journaled.items.length).toBe(state.decisions.approved);
     expect(journaled.items[0]?.verdict).toBeDefined();
     expect(journaled.items[0]?.risk.approve).toBe(true);
+    // Approved trade journal entries must carry analysts (parity with pre-migration behavior).
+    expect(journaled.items[0]?.analysts).toBeDefined();
     // Decisions stream holds every decision (approved + vetoed).
     const allDecisions = await decisions.list({ limit: 100 });
     expect(allDecisions.items.length).toBe(state.decisions.approved + state.decisions.vetoed);

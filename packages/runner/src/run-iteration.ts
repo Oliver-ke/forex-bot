@@ -125,6 +125,7 @@ export async function runIteration(
                 decision: result.decision,
                 bundle: result.bundle,
                 pipValuePerLot,
+                ...(result.analysts ? { analysts: result.analysts } : {}),
               });
             }
           } catch (e) {
@@ -157,6 +158,7 @@ export async function runIteration(
         tradeId: `${t.symbol}-${t.openedAt}`,
         symbol: t.symbol,
         openedAt: t.openedAt,
+        ...(t.analysts ? { analysts: [...t.analysts] } : {}),
         verdict: t.verdict,
         risk: t.decision,
         outcome: {

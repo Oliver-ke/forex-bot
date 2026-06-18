@@ -10,7 +10,7 @@ let broker: MT5Broker;
 beforeAll(async () => {
   const s = await startFakeServer();
   server = s.server;
-  broker = new MT5Broker(createMT5Client({ host: "127.0.0.1", port: s.port }));
+  broker = new MT5Broker(await createMT5Client({ host: "127.0.0.1", port: s.port }));
 });
 
 afterAll(

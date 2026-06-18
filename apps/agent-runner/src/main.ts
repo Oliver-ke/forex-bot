@@ -76,7 +76,7 @@ export async function main(): Promise<void> {
 
   const isDemo = process.env.MT5_DEMO === "1";
   const broker = new MT5Broker(
-    createMT5Client({ host: cfg.mt5Host, port: cfg.mt5Port }),
+    await createMT5Client({ host: cfg.mt5Host, port: cfg.mt5Port }),
     isDemo,
     process.env.BROKER_SYMBOL_SUFFIX ?? "",
   );

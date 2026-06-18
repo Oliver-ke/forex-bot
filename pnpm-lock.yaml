@@ -430,6 +430,39 @@ importers:
         specifier: workspace:*
         version: link:../contracts
 
+  packages/runner:
+    dependencies:
+      '@forex-bot/agent-runner':
+        specifier: workspace:*
+        version: link:../../apps/agent-runner
+      '@forex-bot/broker-core':
+        specifier: workspace:*
+        version: link:../broker-core
+      '@forex-bot/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@forex-bot/data-core':
+        specifier: workspace:*
+        version: link:../data-core
+      '@forex-bot/eval-core':
+        specifier: workspace:*
+        version: link:../eval-core
+      '@forex-bot/executor':
+        specifier: workspace:*
+        version: link:../executor
+      '@forex-bot/indicators':
+        specifier: workspace:*
+        version: link:../indicators
+      '@forex-bot/llm-provider':
+        specifier: workspace:*
+        version: link:../llm-provider
+      '@forex-bot/risk':
+        specifier: workspace:*
+        version: link:../risk
+      '@forex-bot/telemetry':
+        specifier: workspace:*
+        version: link:../telemetry
+
   packages/telemetry:
     dependencies:
       '@forex-bot/contracts':

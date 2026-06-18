@@ -1,4 +1,5 @@
 export * from "./clock.js";
+export * from "./close-simulator.js";
 export * from "./equity-curve.js";
 export * from "./fixture-bars.js";
 export * from "./fixture-calendar.js";

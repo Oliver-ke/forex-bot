@@ -1,4 +1,4 @@
-import { detectTriggers, tick } from "@forex-bot/agent-runner";
+import { detectTriggers, feedAgeMs, isMarketClosed, tick } from "@forex-bot/agent-runner";
 import type { Broker } from "@forex-bot/broker-core";
 import { MT5Broker, createMT5Client } from "@forex-bot/broker-mt5";
 import { RedisHotCache } from "@forex-bot/cache";
@@ -39,6 +39,8 @@ export interface PaperConfig {
   /** DynamoDB decisions table (every tick: approved + vetoed); empty → memory. */
   decisionsTable: string;
   awsRegion: string;
+  /** Skip ticks when the latest candle is older than this (market closed). */
+  marketStaleSec: number;
 }
 
 export function readConfig(): PaperConfig {
@@ -76,6 +78,7 @@ export function readConfig(): PaperConfig {
     journalTable: process.env.JOURNAL_TABLE ?? "",
     decisionsTable: process.env.DECISIONS_TABLE ?? "",
     awsRegion: process.env.AWS_REGION ?? "eu-west-2",
+    marketStaleSec: Number(process.env.MARKET_STALE_SEC ?? 10_800),
   };
 }
 
@@ -198,6 +201,8 @@ export interface PaperRunnerDeps {
   journal: JournalStore;
   /** Full decision stream — every tick (approved + vetoed). */
   decisions: JournalStore;
+  /** Skip ticks when the latest candle is older than this many ms (market closed). */
+  marketStaleMs: number;
   log: Logger;
   watchedSymbols: readonly Symbol[];
   consensusThreshold: number;
@@ -244,6 +249,13 @@ export async function runIteration(
     for (const symbol of deps.watchedSymbols) {
       try {
         const candlesH1 = await deps.broker.getCandles(symbol, "H1", 200);
+        if (isMarketClosed(candlesH1, nowMs, deps.marketStaleMs)) {
+          deps.log.info("market closed / feed stale — skipping tick", {
+            symbol,
+            feedAgeSec: Math.round(feedAgeMs(candlesH1, nowMs) / 1000),
+          });
+          continue;
+        }
         const calendar = await deps.cache.getCalendarWindow();
         const triggers = detectTriggers({
           nowMs,
@@ -384,6 +396,7 @@ export async function main(): Promise<void> {
     writer,
     journal,
     decisions,
+    marketStaleMs: cfg.marketStaleSec * 1000,
     log,
     watchedSymbols: cfg.watchedSymbols,
     consensusThreshold: defaultRiskConfig.agent.consensusThreshold,

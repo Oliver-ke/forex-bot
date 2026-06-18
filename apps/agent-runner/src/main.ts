@@ -4,6 +4,7 @@ import { type Symbol, defaultRiskConfig } from "@forex-bot/contracts";
 import { AnthropicLlm } from "@forex-bot/llm-provider";
 import { CorrelationMatrix, type GateContext, KillSwitch } from "@forex-bot/risk";
 import { Logger } from "@forex-bot/telemetry";
+import { feedAgeMs, isMarketClosed } from "./market.js";
 import { tick } from "./tick.js";
 import { detectTriggers } from "./triggers.js";
 
@@ -88,6 +89,7 @@ export async function main(): Promise<void> {
     pollMs: cfg.pollMs,
   });
 
+  const marketStaleMs = Number(process.env.MARKET_STALE_SEC ?? 10_800) * 1000;
   let lastTickedMs = Date.now();
   let lastRebalanceMs = Date.now();
 
@@ -96,6 +98,13 @@ export async function main(): Promise<void> {
     for (const symbol of cfg.watchedSymbols) {
       try {
         const candlesH1 = await broker.getCandles(symbol, "H1", 200);
+        if (isMarketClosed(candlesH1, now, marketStaleMs)) {
+          log.info("market closed / feed stale — skipping tick", {
+            symbol,
+            feedAgeSec: Math.round(feedAgeMs(candlesH1, now) / 1000),
+          });
+          continue;
+        }
         const calendar = await cache.getCalendarWindow();
         const triggers = detectTriggers({
           nowMs: now,

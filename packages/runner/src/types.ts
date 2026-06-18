@@ -30,6 +30,8 @@ export interface RunnerDeps {
   executor: Executor;
   journal: JournalStore; // approved trades (with outcome once closed)
   decisions: JournalStore; // every decision
+  /** Budget gate: paper-runner's BudgetTracker satisfies this structurally. */
+  budget: { readonly tripped: boolean; readonly spendUsd: number };
   buildGateContext: (input: {
     now: number;
     symbol: Symbol;

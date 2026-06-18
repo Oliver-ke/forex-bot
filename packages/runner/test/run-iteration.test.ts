@@ -106,7 +106,11 @@ function makeStubExecutor(): Executor & { openCalls: OpenIntent[] } {
   };
 }
 
-async function buildHarness(opts: { startMs: number; marketStaleMs?: number }) {
+async function buildHarness(opts: {
+  startMs: number;
+  marketStaleMs?: number;
+  budget?: { readonly tripped: boolean; readonly spendUsd: number };
+}) {
   const symbol: Symbol = "EURUSD";
 
   const broker = new FakeBroker({
@@ -146,6 +150,7 @@ async function buildHarness(opts: { startMs: number; marketStaleMs?: number }) {
     executor,
     journal,
     decisions,
+    budget: opts.budget ?? { tripped: false, spendUsd: 0 },
     marketStaleMs: opts.marketStaleMs ?? 365 * 24 * 60 * 60 * 1000,
     log,
     watchedSymbols: [symbol],
@@ -177,8 +182,8 @@ describe("runner runIteration", () => {
     const allDecisions = await decisions.list({ limit: 100 });
     expect(allDecisions.items.length).toBe(3);
 
-    // executor.open should have been called once per approved tick.
-    expect(executor.openCalls.length).toBe(state.decisions.approved);
+    // consensusLongRoute always approves, so all 3 ticks should have called open.
+    expect(executor.openCalls.length).toBe(3);
   });
 
   it("skips the tick when the feed is stale — market closed", async () => {
@@ -194,5 +199,28 @@ describe("runner runIteration", () => {
     expect(state.decisions.ticks).toBe(0);
     expect((await decisions.list({ limit: 10 })).items.length).toBe(0);
     expect(executor.openCalls.length).toBe(0);
+  });
+
+  it("budget tripped — skips tick, does not advance lastTickedMs, does not open", async () => {
+    const startMs = Date.UTC(2026, 2, 15, 12, 0, 0);
+    const { deps, decisions, executor, log } = await buildHarness({
+      startMs,
+      budget: { tripped: true, spendUsd: 99 },
+    });
+    const state = initialState(startMs - HOUR_MS);
+    const originalLastTickedMs = state.lastTickedMs;
+
+    await runIteration(deps, state, startMs);
+
+    // No ticks should have fired.
+    expect(state.decisions.ticks).toBe(0);
+    // executor.open must NOT have been called.
+    expect(executor.openCalls.length).toBe(0);
+    // lastTickedMs must NOT advance when the budget is tripped.
+    expect(state.lastTickedMs).toBe(originalLastTickedMs);
+    // decisions store should be empty.
+    expect((await decisions.list({ limit: 10 })).items.length).toBe(0);
+    // warn should have been called with the budget message.
+    expect(log.warn).toHaveBeenCalledWith("budget tripped, skipping tick", { spendUsd: 99 });
   });
 });

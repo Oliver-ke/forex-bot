@@ -1,0 +1,8 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`golden: consensus-long tick produces a stable decision shape 1`] = `
+{
+  "approve": true,
+  "ticks": 1,
+}
+`;

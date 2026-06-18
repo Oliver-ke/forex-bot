@@ -179,7 +179,11 @@ describe("paper-runner runIteration integration", () => {
   });
 
   /** Build the deps + initial state with a FakeBroker(isDemo: true), InMemoryHotCache, FakeLlm. */
-  async function buildHarness(opts: { startMs: number; budgetMaxUsd?: number }) {
+  async function buildHarness(opts: {
+    startMs: number;
+    budgetMaxUsd?: number;
+    marketStaleMs?: number;
+  }) {
     const symbol: Symbol = "EURUSD";
 
     const broker = new FakeBroker({
@@ -219,6 +223,9 @@ describe("paper-runner runIteration integration", () => {
       writer,
       journal,
       decisions,
+      // Default effectively disables the staleness skip so existing assertions
+      // (which use static bars) are unaffected; the skip test overrides it.
+      marketStaleMs: opts.marketStaleMs ?? 365 * 24 * 60 * 60 * 1000,
       log,
       watchedSymbols: [symbol],
       consensusThreshold: 0.7,
@@ -272,6 +279,20 @@ describe("paper-runner runIteration integration", () => {
     // FakeLlm should have been invoked at least once per tick (analysts +
     // consensus-judge + risk-officer ≈ 5 calls minimum on the consensus path).
     expect(llm.calls.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("skips the tick (no LLM/decision) when the feed is stale — market closed", async () => {
+    const startMs = Date.UTC(2026, 2, 15, 12, 0, 0);
+    // Latest bar is ~1h old; a 1-minute stale threshold ⇒ treated as closed.
+    const { deps, llm, decisions } = await buildHarness({ startMs, marketStaleMs: 60_000 });
+    const state = initialState(startMs - HOUR_MS);
+
+    await runIteration(deps, state, startMs);
+
+    expect(state.decisions.ticks).toBe(0);
+    expect(state.cumulativeTrades.length).toBe(0);
+    expect(llm.calls.length).toBe(0); // never reached the agent graph
+    expect((await decisions.list({ limit: 10 })).items.length).toBe(0);
   });
 
   it("daily flush fires when nowMs crosses a UTC day boundary; writes expected files", async () => {

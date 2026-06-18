@@ -67,7 +67,13 @@ function consensusLongRoute() {
   };
 }
 
-function buildGateContextForTest(now: number, account: AccountState, symbol: Symbol): GateContext {
+function buildGateContextForTest(input: {
+  now: number;
+  symbol: Symbol;
+  account: AccountState;
+  bundle: import("@forex-bot/contracts").StateBundle;
+}): GateContext {
+  const { now, symbol, account } = input;
   return {
     now,
     order: {

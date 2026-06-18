@@ -5,11 +5,12 @@ import { type Symbol, defaultRiskConfig } from "@forex-bot/contracts";
 import { type HotCache, InMemoryJournalStore, type JournalStore } from "@forex-bot/data-core";
 import { AnthropicLlm, type LlmProvider, type StructuredRequest } from "@forex-bot/llm-provider";
 import { DynamoJournalStore } from "@forex-bot/memory";
-import { CorrelationMatrix, type GateContext, KillSwitch } from "@forex-bot/risk";
+import type { GateContext } from "@forex-bot/risk";
 import {
   LegacyPaperExecutor,
   type RunnerDeps,
   type RunnerState,
+  buildGateContext,
   initialState as initialStateShared,
   runIteration as runIterationShared,
 } from "@forex-bot/runner";
@@ -96,42 +97,6 @@ class BudgetWrappedLlm implements LlmProvider {
   }
 }
 
-function buildGateContextDefault(
-  now: number,
-  account: GateContext["account"],
-  symbol: Symbol,
-): GateContext {
-  return {
-    now,
-    order: {
-      symbol,
-      side: "buy",
-      lotSize: 0.1,
-      entry: 1.08,
-      sl: 1.075,
-      tp: 1.0875,
-      expiresAt: now + 5 * 60_000,
-    },
-    account,
-    openPositions: [],
-    config: defaultRiskConfig,
-    currentSpreadPips: 1.0,
-    medianSpreadPips: 1.0,
-    atrPips: 30,
-    session: "london",
-    upcomingEvents: [],
-    correlation: new CorrelationMatrix({}),
-    killSwitch: new KillSwitch(),
-    consecutiveLosses: 0,
-    dailyPnlPct: 0,
-    totalDdPct: 0,
-    feedAgeSec: 1,
-    currencyExposurePct: {},
-    affectedCurrencies: (s) => [s.slice(0, 3), s.slice(3)],
-    pipValuePerLot: () => 10,
-  };
-}
-
 export function utcDayMs(ms: number): number {
   const d = new Date(ms);
   return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
@@ -166,7 +131,12 @@ export interface PaperRunnerDeps {
   watchedSymbols: readonly Symbol[];
   consensusThreshold: number;
   /** Build GateContext per tick. */
-  buildGateContext: (now: number, account: GateContext["account"], symbol: Symbol) => GateContext;
+  buildGateContext: (input: {
+    now: number;
+    symbol: Symbol;
+    account: GateContext["account"];
+    bundle: import("@forex-bot/contracts").StateBundle;
+  }) => GateContext;
 }
 
 export interface RunIterationsState extends RunnerState {
@@ -200,7 +170,7 @@ export async function runIteration(
     journal: deps.journal,
     decisions: deps.decisions,
     budget: deps.budget,
-    buildGateContext: ({ now, symbol, account }) => deps.buildGateContext(now, account, symbol),
+    buildGateContext: (input) => deps.buildGateContext(input),
     log: {
       info: (m, f) => deps.log.info(m, f as Record<string, unknown>),
       warn: (m, f) => deps.log.warn(m, f as Record<string, unknown>),
@@ -292,7 +262,7 @@ export async function main(): Promise<void> {
     log,
     watchedSymbols: cfg.watchedSymbols,
     consensusThreshold: defaultRiskConfig.agent.consensusThreshold,
-    buildGateContext: buildGateContextDefault,
+    buildGateContext,
   };
 
   const state = initialState(Date.now());

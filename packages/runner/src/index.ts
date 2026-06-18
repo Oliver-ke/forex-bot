@@ -4,3 +4,4 @@ export * from "./run-iteration.js";
 export * from "./paper-executor.js";
 export * from "./session.js";
 export * from "./pip-value.js";
+export * from "./gate-context.js";

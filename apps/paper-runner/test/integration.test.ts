@@ -12,6 +12,7 @@ import {
 import { InMemoryHotCache, InMemoryJournalStore } from "@forex-bot/data-core";
 import { FakeLlm, type LlmUsage, type StructuredRequest } from "@forex-bot/llm-provider";
 import { CorrelationMatrix, type GateContext, KillSwitch } from "@forex-bot/risk";
+import { LegacyPaperExecutor } from "@forex-bot/runner";
 import { Logger } from "@forex-bot/telemetry";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { BudgetTracker } from "../src/guards.js";
@@ -214,6 +215,7 @@ describe("paper-runner runIteration integration", () => {
 
     const journal = new InMemoryJournalStore();
     const decisions = new InMemoryJournalStore();
+    const executor = new LegacyPaperExecutor();
 
     const deps: PaperRunnerDeps = {
       broker,
@@ -223,6 +225,7 @@ describe("paper-runner runIteration integration", () => {
       writer,
       journal,
       decisions,
+      executor,
       // Default effectively disables the staleness skip so existing assertions
       // (which use static bars) are unaffected; the skip test overrides it.
       marketStaleMs: opts.marketStaleMs ?? 365 * 24 * 60 * 60 * 1000,
@@ -232,13 +235,13 @@ describe("paper-runner runIteration integration", () => {
       buildGateContext: buildGateContextForTest,
     };
 
-    return { deps, broker, cache, llm, budget, writer, journal, decisions };
+    return { deps, broker, cache, llm, budget, writer, journal, decisions, executor };
   }
 
   it("3 ticks fire, decisions counter increments, approved trade accumulates", async () => {
     // Anchor at 2026-03-15 12:00 UTC so we don't cross a day boundary in the loop.
     const startMs = Date.UTC(2026, 2, 15, 12, 0, 0);
-    const { deps, llm, budget, journal, decisions } = await buildHarness({ startMs });
+    const { deps, llm, budget, journal, decisions, executor } = await buildHarness({ startMs });
 
     // Note: FakeLlm does NOT call onUsage by default, so the BudgetWrappedLlm
     // wrapper is bypassed in this test. We instead simulate spend by calling
@@ -263,7 +266,7 @@ describe("paper-runner runIteration integration", () => {
 
     expect(state.decisions.ticks).toBe(3);
     expect(state.decisions.approved).toBeGreaterThanOrEqual(1);
-    expect(state.cumulativeTrades.length).toBe(state.decisions.approved);
+    expect(executor.cumulativeTrades.length).toBe(state.decisions.approved);
     // Trade journal holds only approved trades.
     const journaled = await journal.list({ limit: 100 });
     expect(journaled.items.length).toBe(state.decisions.approved);
@@ -284,13 +287,16 @@ describe("paper-runner runIteration integration", () => {
   it("skips the tick (no LLM/decision) when the feed is stale — market closed", async () => {
     const startMs = Date.UTC(2026, 2, 15, 12, 0, 0);
     // Latest bar is ~1h old; a 1-minute stale threshold ⇒ treated as closed.
-    const { deps, llm, decisions } = await buildHarness({ startMs, marketStaleMs: 60_000 });
+    const { deps, llm, decisions, executor } = await buildHarness({
+      startMs,
+      marketStaleMs: 60_000,
+    });
     const state = initialState(startMs - HOUR_MS);
 
     await runIteration(deps, state, startMs);
 
     expect(state.decisions.ticks).toBe(0);
-    expect(state.cumulativeTrades.length).toBe(0);
+    expect(executor.cumulativeTrades.length).toBe(0);
     expect(llm.calls.length).toBe(0); // never reached the agent graph
     expect((await decisions.list({ limit: 10 })).items.length).toBe(0);
   });
@@ -333,7 +339,7 @@ describe("paper-runner runIteration integration", () => {
 
   it("when budget is tripped, ticks are skipped", async () => {
     const startMs = Date.UTC(2026, 2, 15, 12, 0, 0);
-    const { deps, budget } = await buildHarness({ startMs, budgetMaxUsd: 0.01 });
+    const { deps, budget, executor } = await buildHarness({ startMs, budgetMaxUsd: 0.01 });
 
     // Trip the budget BEFORE iterating.
     budget.onUsage({
@@ -348,6 +354,6 @@ describe("paper-runner runIteration integration", () => {
     await runIteration(deps, state, startMs);
 
     expect(state.decisions.ticks).toBe(0);
-    expect(state.cumulativeTrades.length).toBe(0);
+    expect(executor.cumulativeTrades.length).toBe(0);
   });
 });

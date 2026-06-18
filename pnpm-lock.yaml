@@ -149,6 +149,9 @@ importers:
       '@forex-bot/risk':
         specifier: workspace:*
         version: link:../../packages/risk
+      '@forex-bot/runner':
+        specifier: workspace:*
+        version: link:../../packages/runner
       '@forex-bot/telemetry':
         specifier: workspace:*
         version: link:../../packages/telemetry

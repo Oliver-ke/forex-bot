@@ -12,6 +12,7 @@ import type { AccountState } from "@forex-bot/contracts";
 import { InMemoryHotCache, InMemoryJournalStore } from "@forex-bot/data-core";
 import { FakeLlm, type StructuredRequest } from "@forex-bot/llm-provider";
 import { CorrelationMatrix, type GateContext, KillSwitch } from "@forex-bot/risk";
+import { LegacyPaperExecutor } from "@forex-bot/runner";
 import { Logger } from "@forex-bot/telemetry";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { BudgetTracker } from "../src/guards.js";
@@ -128,6 +129,7 @@ async function buildHarness(opts: { startMs: number }) {
 
   const journal = new InMemoryJournalStore();
   const decisions = new InMemoryJournalStore();
+  const executor = new LegacyPaperExecutor();
 
   const deps: PaperRunnerDeps = {
     broker,
@@ -137,6 +139,7 @@ async function buildHarness(opts: { startMs: number }) {
     writer,
     journal,
     decisions,
+    executor,
     marketStaleMs: 365 * 24 * 60 * 60 * 1000,
     log,
     watchedSymbols: [symbol],

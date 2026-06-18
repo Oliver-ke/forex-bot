@@ -109,6 +109,11 @@ describe("MetricsWriter", () => {
     expect(snap.perRegime.ranging).toEqual({ trades: 1, pnl: -5 });
     expect(snap.perRegime["event-driven"]).toEqual({ trades: 0, pnl: 0 });
     expect(snap.perRegime["risk-off"]).toEqual({ trades: 0, pnl: 0 });
+
+    // accuracy: all 3 trades have direction "long" (from the helper), exit=1.01 > entry=1
+    // → all 3 are directional hits → directionalHitRate = 1
+    expect(snap.accuracy.directionalHitRate).toBeCloseTo(1, 5);
+    expect(snap.accuracy.winRate).toBeCloseTo(2 / 3, 5);
   });
 
   it("flush writes metrics-YYYYMMDD.json and appends a JSONL line; second flush appends another", async () => {
@@ -128,6 +133,7 @@ describe("MetricsWriter", () => {
         maxDrawdownPct: 0,
         sharpe: 0,
       },
+      accuracy: { directionalHitRate: 0, winRate: 0, expectancyR: 0 },
       decisions: emptyDecisions(),
       llmSpendUsd: 0,
       perSession: {
@@ -191,6 +197,7 @@ describe("MetricsWriter", () => {
         maxDrawdownPct: 0,
         sharpe: 0,
       },
+      accuracy: { directionalHitRate: 0, winRate: 0, expectancyR: 0 },
       decisions: emptyDecisions(),
       llmSpendUsd: 0,
       perSession: {

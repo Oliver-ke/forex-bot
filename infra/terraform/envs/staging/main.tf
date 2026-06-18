@@ -144,3 +144,53 @@ module "paper_runner" {
   ]
   common_tags = local.common_tags
 }
+
+# --- Market-hours scheduled scaling -----------------------------------------
+# Scale sidecar + paper-runner to 0 while the forex market is closed (Fri 22:00
+# UTC → Sun 21:00 UTC) to save Fargate cost, back to 1 when it reopens. The
+# app-level staleness gate already stops LLM spend when closed; this stops the
+# containers too. Times are safely inside the closed window.
+locals {
+  scheduled_services = {
+    sidecar      = module.sidecar.service_name
+    paper_runner = module.paper_runner.service_name
+  }
+  cluster_name = "forex-bot-${var.env}-cluster"
+}
+
+resource "aws_appautoscaling_target" "svc" {
+  for_each           = local.scheduled_services
+  service_namespace  = "ecs"
+  resource_id        = "service/${local.cluster_name}/${each.value}"
+  scalable_dimension = "ecs:service:DesiredCount"
+  min_capacity       = 0
+  max_capacity       = 1
+}
+
+resource "aws_appautoscaling_scheduled_action" "market_close" {
+  for_each           = local.scheduled_services
+  name               = "${each.value}-market-close"
+  service_namespace  = aws_appautoscaling_target.svc[each.key].service_namespace
+  resource_id        = aws_appautoscaling_target.svc[each.key].resource_id
+  scalable_dimension = aws_appautoscaling_target.svc[each.key].scalable_dimension
+  timezone           = "UTC"
+  schedule           = "cron(0 22 ? * FRI *)" # Fri 22:00 UTC — after forex close
+  scalable_target_action {
+    min_capacity = 0
+    max_capacity = 0
+  }
+}
+
+resource "aws_appautoscaling_scheduled_action" "market_open" {
+  for_each           = local.scheduled_services
+  name               = "${each.value}-market-open"
+  service_namespace  = aws_appautoscaling_target.svc[each.key].service_namespace
+  resource_id        = aws_appautoscaling_target.svc[each.key].resource_id
+  scalable_dimension = aws_appautoscaling_target.svc[each.key].scalable_dimension
+  timezone           = "UTC"
+  schedule           = "cron(0 21 ? * SUN *)" # Sun 21:00 UTC — before forex open
+  scalable_target_action {
+    min_capacity = 1
+    max_capacity = 1
+  }
+}

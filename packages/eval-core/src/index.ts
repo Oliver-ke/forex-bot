@@ -1,3 +1,4 @@
+export * from "./accuracy.js";
 export * from "./clock.js";
 export * from "./equity-curve.js";
 export * from "./fixture-bars.js";

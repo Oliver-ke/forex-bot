@@ -1,6 +1,12 @@
 import { appendFile, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { type Metrics, type Trade, computeMetrics } from "@forex-bot/eval-core";
+import {
+  type AccuracyScore,
+  type Metrics,
+  type Trade,
+  computeMetrics,
+  scoreAccuracy,
+} from "@forex-bot/eval-core";
 
 export interface DecisionCounters {
   ticks: number;
@@ -46,6 +52,7 @@ export interface DailyMetricsSnapshot {
   dayMs: number;
   generatedAt: number;
   metrics: Metrics;
+  accuracy: AccuracyScore;
   decisions: DecisionCounters;
   llmSpendUsd: number;
   perSession: SessionBreakdown;
@@ -80,12 +87,14 @@ export class MetricsWriter {
   /** Build the snapshot in memory. Trade-session and regime tagging are caller-provided. */
   buildSnapshot(input: BuildSnapshotInput): DailyMetricsSnapshot {
     const metrics = computeMetrics(input.cumulativeTrades);
+    const accuracy = scoreAccuracy(input.cumulativeTrades);
     const perSession = computePerSession(input.cumulativeTrades, input.sessions);
     const perRegime = computePerRegime(input.cumulativeTrades, input.regimes);
     return {
       dayMs: input.dayMs,
       generatedAt: this.nowFn(),
       metrics,
+      accuracy,
       decisions: input.decisions,
       llmSpendUsd: input.llmSpendUsd,
       perSession,

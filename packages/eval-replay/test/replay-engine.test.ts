@@ -28,7 +28,13 @@ function bar(ts: number, close: number, opts: { high?: number; low?: number } = 
  * SL at 1.0750 for a buy entered around 1.080.
  */
 function buildBars(startMs: number): readonly Candle[] {
+  // 15 warmup bars before the window so ATR(14) is defined at the first tick
+  // (the order's stop is now ATR-based). They predate every entry, so the
+  // futureBars SL/TP simulation is unaffected.
+  const warmup: Candle[] = [];
+  for (let i = 15; i >= 1; i--) warmup.push(bar(startMs - i * HOUR_MS, 1.08));
   return [
+    ...warmup,
     bar(startMs + 0 * HOUR_MS, 1.08),
     bar(startMs + 1 * HOUR_MS, 1.0805),
     bar(startMs + 2 * HOUR_MS, 1.081),

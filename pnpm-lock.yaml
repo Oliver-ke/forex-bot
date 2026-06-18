@@ -347,6 +347,9 @@ importers:
       '@forex-bot/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@forex-bot/indicators':
+        specifier: workspace:*
+        version: link:../indicators
       '@forex-bot/llm-provider':
         specifier: workspace:*
         version: link:../llm-provider

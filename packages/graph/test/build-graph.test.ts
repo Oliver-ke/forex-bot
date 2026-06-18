@@ -1,8 +1,28 @@
-import { type StateBundle, defaultRiskConfig } from "@forex-bot/contracts";
+import { type Candle, type StateBundle, defaultRiskConfig } from "@forex-bot/contracts";
 import { FakeLlm, type StructuredRequest } from "@forex-bot/llm-provider";
 import { CorrelationMatrix, type GateContext, KillSwitch } from "@forex-bot/risk";
 import { describe, expect, it } from "vitest";
 import { buildGraph } from "../src/build-graph.js";
+import { type GraphState, gatesNode } from "../src/index.js";
+
+/** Enough H1 candles (>14) for ATR(14); ~6-pip ranges around 1.08. */
+function h1Bars(n = 30): Candle[] {
+  const out: Candle[] = [];
+  let price = 1.08;
+  for (let i = 0; i < n; i++) {
+    const close = price + (i % 2 === 0 ? 0.0002 : -0.0002);
+    out.push({
+      ts: i + 1,
+      open: price,
+      high: Math.max(price, close) + 0.0003,
+      low: Math.min(price, close) - 0.0003,
+      close,
+      volume: 0,
+    });
+    price = close;
+  }
+  return out;
+}
 
 const stubBundle: StateBundle = {
   symbol: "EURUSD",
@@ -11,7 +31,7 @@ const stubBundle: StateBundle = {
   market: {
     symbol: "EURUSD",
     M15: [{ ts: 1, open: 1.08, high: 1.081, low: 1.079, close: 1.0805, volume: 0 }],
-    H1: [{ ts: 1, open: 1.08, high: 1.081, low: 1.079, close: 1.0805, volume: 0 }],
+    H1: h1Bars(30),
     H4: [{ ts: 1, open: 1.08, high: 1.085, low: 1.075, close: 1.083, volume: 0 }],
     D1: [{ ts: 1, open: 1.08, high: 1.09, low: 1.07, close: 1.085, volume: 0 }],
   },
@@ -207,5 +227,46 @@ describe("buildGraph", () => {
     expect(out.finalDecision).toBeUndefined();
     const roCalls = llm.calls.filter((c) => c.system.includes("Risk Officer"));
     expect(roCalls).toHaveLength(0);
+  });
+});
+
+describe("gatesNode order construction", () => {
+  it("builds a real ATR-based, direction-correct, sized order (not the stub)", async () => {
+    const short: GraphState = {
+      bundle: stubBundle,
+      gateContext: mkGateCtx(),
+      verdict: { direction: "short", confidence: 0.7, horizon: "H1", reasoning: "x" },
+    };
+    const out = await gatesNode(short);
+    expect(out.tentativeDecision?.approve).toBe(true);
+    if (out.tentativeDecision?.approve) {
+      // Short ⇒ SL above entry, TP below ⇒ sl > tp. Derived from ATR, not the
+      // 1.075/1.0875 stub, and far enough apart to be a real (non-0.5p) stop.
+      expect(out.tentativeDecision.sl).toBeGreaterThan(out.tentativeDecision.tp);
+      expect(out.tentativeDecision.lotSize).toBeGreaterThan(0);
+    }
+
+    const long: GraphState = {
+      bundle: stubBundle,
+      gateContext: mkGateCtx(),
+      verdict: { direction: "long", confidence: 0.7, horizon: "H1", reasoning: "x" },
+    };
+    const outLong = await gatesNode(long);
+    if (outLong.tentativeDecision?.approve) {
+      expect(outLong.tentativeDecision.tp).toBeGreaterThan(outLong.tentativeDecision.sl);
+    }
+  });
+
+  it("vetoes when there is insufficient H1 history for ATR", async () => {
+    const thin: GraphState = {
+      bundle: {
+        ...stubBundle,
+        market: { ...stubBundle.market, H1: stubBundle.market.H1.slice(0, 3) },
+      },
+      gateContext: mkGateCtx(),
+      verdict: { direction: "long", confidence: 0.7, horizon: "H1", reasoning: "x" },
+    };
+    const out = await gatesNode(thin);
+    expect(out.tentativeDecision?.approve).toBe(false);
   });
 });

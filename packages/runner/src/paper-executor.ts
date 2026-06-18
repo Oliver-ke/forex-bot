@@ -42,8 +42,8 @@ interface OpenPosition {
  * broker on each reconcile and asks `simulateClose` whether any bar after
  * the open time triggered a close.
  *
- * Exposes the same three getters as `LegacyPaperExecutor` so Task 3.2 can
- * swap it in for the metrics flush without changes.
+ * Exposes three getters (cumulativeTrades, sessions, regimes) consumed by the
+ * paper-runner daily-metrics flush.
  */
 export class PaperExecutor implements Executor {
   private readonly _broker: Broker;
@@ -59,7 +59,7 @@ export class PaperExecutor implements Executor {
   }
 
   // ---------------------------------------------------------------------------
-  // Getters (same contract as LegacyPaperExecutor)
+  // Getters (consumed by the daily-metrics flush)
   // ---------------------------------------------------------------------------
 
   get cumulativeTrades(): readonly Trade[] {

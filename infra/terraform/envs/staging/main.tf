@@ -135,12 +135,14 @@ module "paper_runner" {
     JOURNAL_TABLE        = module.data.journal_table_name
     DECISIONS_TABLE      = module.data.decisions_table_name
     KILLSWITCH_TABLE     = module.data.killswitch_table_name
+    METRICS_TABLE        = module.data.metrics_table_name
     AWS_REGION           = "eu-west-2"
   }
   extra_iam_policy_arns = [
     module.data.journal_rw_policy_arn,
     module.data.decisions_rw_policy_arn,
     module.data.killswitch_rw_policy_arn,
+    module.data.metrics_rw_policy_arn,
   ]
   common_tags = local.common_tags
 }

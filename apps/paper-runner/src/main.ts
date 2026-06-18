@@ -3,8 +3,9 @@ import { MT5Broker, createMT5Client } from "@forex-bot/broker-mt5";
 import { RedisHotCache } from "@forex-bot/cache";
 import { type Symbol, defaultRiskConfig } from "@forex-bot/contracts";
 import { type HotCache, InMemoryJournalStore, type JournalStore } from "@forex-bot/data-core";
+import type { MetricsStore } from "@forex-bot/eval-core";
 import { AnthropicLlm, type LlmProvider, type StructuredRequest } from "@forex-bot/llm-provider";
-import { DynamoJournalStore } from "@forex-bot/memory";
+import { DynamoJournalStore, DynamoMetricsStore } from "@forex-bot/memory";
 import type { GateContext } from "@forex-bot/risk";
 import {
   PaperExecutor,
@@ -31,6 +32,8 @@ export interface PaperConfig {
   journalTable: string;
   /** DynamoDB decisions table (every tick: approved + vetoed); empty → memory. */
   decisionsTable: string;
+  /** DynamoDB daily metrics snapshot table; empty → /tmp only. */
+  metricsTable: string;
   awsRegion: string;
   /** Skip ticks when the latest candle is older than this (market closed). */
   marketStaleSec: number;
@@ -70,6 +73,7 @@ export function readConfig(): PaperConfig {
     paperOutDir: process.env.PAPER_OUT_DIR ?? "./paper-out",
     journalTable: process.env.JOURNAL_TABLE ?? "",
     decisionsTable: process.env.DECISIONS_TABLE ?? "",
+    metricsTable: process.env.METRICS_TABLE ?? "",
     awsRegion: process.env.AWS_REGION ?? "eu-west-2",
     marketStaleSec: Number(process.env.MARKET_STALE_SEC ?? 10_800),
   };
@@ -125,6 +129,8 @@ export interface PaperRunnerDeps {
   decisions: JournalStore;
   /** The executor that accumulates synthesized trades; exposes cumulativeTrades/sessions/regimes. */
   executor: PaperExecutor;
+  /** Optional durable sink for daily snapshots (DynamoDB). /tmp writer always fires too. */
+  metricsStore?: MetricsStore;
   /** Skip ticks when the latest candle is older than this many ms (market closed). */
   marketStaleMs: number;
   log: Logger;
@@ -197,6 +203,13 @@ export async function runIteration(
         llmSpendUsd: deps.budget.spendUsd,
       });
       await deps.writer.flush(snapshot);
+      if (deps.metricsStore) {
+        try {
+          await deps.metricsStore.put(snapshot);
+        } catch (e) {
+          deps.log.error("metrics sink put failed", { err: String(e) });
+        }
+      }
       deps.log.info("daily metrics flushed", {
         dayMs: state.lastFlushDayMs,
         trades: deps.executor.cumulativeTrades.length,
@@ -239,6 +252,9 @@ export async function main(): Promise<void> {
   const decisions: JournalStore = cfg.decisionsTable
     ? new DynamoJournalStore({ tableName: cfg.decisionsTable, region: cfg.awsRegion })
     : new InMemoryJournalStore();
+  const metricsStore = cfg.metricsTable
+    ? new DynamoMetricsStore({ tableName: cfg.metricsTable, region: cfg.awsRegion })
+    : undefined;
 
   const executor = new PaperExecutor(broker);
 
@@ -258,6 +274,7 @@ export async function main(): Promise<void> {
     journal,
     decisions,
     executor,
+    ...(metricsStore !== undefined ? { metricsStore } : {}),
     marketStaleMs: cfg.marketStaleSec * 1000,
     log,
     watchedSymbols: cfg.watchedSymbols,

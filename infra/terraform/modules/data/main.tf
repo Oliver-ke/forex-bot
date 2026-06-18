@@ -175,6 +175,49 @@ resource "aws_iam_policy" "decisions_rw" {
   policy      = data.aws_iam_policy_document.decisions_rw.json
 }
 
+resource "aws_dynamodb_table" "metrics" {
+  name         = "${local.name_prefix}-metrics"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "dayMs"
+
+  attribute {
+    name = "dayMs"
+    type = "N"
+  }
+
+  point_in_time_recovery { enabled = true }
+  server_side_encryption { enabled = true }
+
+  tags = merge(var.common_tags, { Name = "${local.name_prefix}-metrics" })
+}
+
+data "aws_iam_policy_document" "metrics_rw" {
+  statement {
+    sid    = "MetricsRW"
+    effect = "Allow"
+    actions = [
+      "dynamodb:GetItem",
+      "dynamodb:PutItem",
+      "dynamodb:UpdateItem",
+      "dynamodb:DeleteItem",
+      "dynamodb:Query",
+      "dynamodb:Scan",
+      "dynamodb:BatchGetItem",
+      "dynamodb:BatchWriteItem",
+    ]
+    resources = [
+      aws_dynamodb_table.metrics.arn,
+      "${aws_dynamodb_table.metrics.arn}/index/*",
+    ]
+  }
+}
+
+resource "aws_iam_policy" "metrics_rw" {
+  name        = "${local.name_prefix}-metrics-rw"
+  description = "Read/write on daily metrics snapshot DynamoDB table"
+  policy      = data.aws_iam_policy_document.metrics_rw.json
+}
+
 data "aws_iam_policy_document" "killswitch_rw" {
   statement {
     sid    = "KillSwitchRW"

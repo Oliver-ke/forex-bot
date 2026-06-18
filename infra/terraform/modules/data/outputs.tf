@@ -45,3 +45,11 @@ output "decisions_table_name" {
 output "decisions_rw_policy_arn" {
   value = aws_iam_policy.decisions_rw.arn
 }
+
+output "metrics_table_name" {
+  value = aws_dynamodb_table.metrics.name
+}
+
+output "metrics_rw_policy_arn" {
+  value = aws_iam_policy.metrics_rw.arn
+}

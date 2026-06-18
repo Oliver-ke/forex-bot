@@ -14,6 +14,7 @@
     "@aws-sdk/lib-dynamodb": "^3.690.0",
     "@forex-bot/contracts": "workspace:*",
     "@forex-bot/data-core": "workspace:*",
+    "@forex-bot/eval-core": "workspace:*",
     "pg": "^8.13.0"
   },
   "devDependencies": {

@@ -92,7 +92,7 @@ def test_initialize_and_data_methods_use_rpc_connection(monkeypatch):
     try:
         # Must not raise "no running event loop" (bootstrap runs in the loop)
         # nor AttributeError (RPC connection, not streaming).
-        p.initialize(token="tok", account_id="acct", region="london")
+        p.initialize(token="tok", account_id="acct")
         assert p.is_alive() is True
 
         acct = p.get_account()

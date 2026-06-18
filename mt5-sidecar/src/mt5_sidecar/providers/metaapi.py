@@ -42,22 +42,27 @@ class MetaApiProvider:
     def initialize(self, **kwargs: Any) -> None:
         token = kwargs.get("token") or os.environ.get("METAAPI_TOKEN")
         acct_id = kwargs.get("account_id") or os.environ.get("METAAPI_ACCOUNT_ID")
-        region = kwargs.get("region") or os.environ.get("METAAPI_REGION", "london")
         if not (token and acct_id):
             raise RuntimeError("METAAPI_TOKEN + METAAPI_ACCOUNT_ID required")
-        self._init_kwargs = {"token": token, "account_id": acct_id, "region": region}
+        self._init_kwargs = {"token": token, "account_id": acct_id}
 
         self._loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self._loop)
         # Run the whole bootstrap inside the loop. Several SDK objects
-        # (MetaApi, the streaming connection) schedule asyncio tasks in their
-        # constructors, so they must be built while the loop is running —
-        # otherwise they raise "RuntimeError: no running event loop". Doing it
-        # all in one coroutine guarantees a running loop for every step.
-        self._run(self._bootstrap(token, acct_id, region))
+        # (MetaApi, the connection) schedule asyncio tasks in their constructors,
+        # so they must be built while the loop is running — otherwise they raise
+        # "RuntimeError: no running event loop". Doing it all in one coroutine
+        # guarantees a running loop for every step.
+        self._run(self._bootstrap(token, acct_id))
 
-    async def _bootstrap(self, token: str, acct_id: str, region: str) -> None:
-        self._api = MetaApi(token=token, opts={"region": region})
+    async def _bootstrap(self, token: str, acct_id: str) -> None:
+        # No `region` option: the Python SDK auto-discovers the account's region.
+        # Passing it pinned the client to a shared server that wasn't the
+        # account's active API server, causing constant websocket reconnects and
+        # "retrying subscription" churn (verified: region=on flaps ~1/min;
+        # region=off stays connected). The SDK explicitly warns against passing
+        # region for the Python/JS SDKs.
+        self._api = MetaApi(token=token)
         self._account = await self._api.metatrader_account_api.get_account(acct_id)
         await self._account.deploy()
         await self._account.wait_connected()

@@ -107,6 +107,7 @@ interface OpenPosition {
   decision: OpenIntent["decision"];
   pipValuePerLot: number;
   regimeLabel: RegimeKey;
+  analysts: ClosedTrade["analysts"];
 }
 
 /**
@@ -159,7 +160,7 @@ export class PaperExecutor implements Executor {
    * bar in the bundle (M15 → H1 → H4 → D1) — same heuristic as `buildTrade`.
    */
   async open(intent: OpenIntent): Promise<boolean> {
-    const { symbol, now, decision, bundle, pipValuePerLot } = intent;
+    const { symbol, now, decision, bundle, pipValuePerLot, analysts } = intent;
 
     const side: "buy" | "sell" = decision.sl < decision.tp ? "buy" : "sell";
 
@@ -197,6 +198,7 @@ export class PaperExecutor implements Executor {
       decision,
       pipValuePerLot,
       regimeLabel,
+      analysts,
     };
 
     this._open.push(pos);
@@ -269,6 +271,7 @@ export class PaperExecutor implements Executor {
         exitReason,
         verdict: pos.verdict,
         decision: pos.decision,
+        ...(pos.analysts ? { analysts: pos.analysts } : {}),
       };
 
       // Remove from open set.

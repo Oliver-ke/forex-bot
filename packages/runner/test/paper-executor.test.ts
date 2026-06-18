@@ -61,7 +61,12 @@ function makeBroker(h1Candles: Candle[]): Broker {
  * Build a minimal OpenIntent for a EURUSD buy.
  * entry is derived from bundle.market.M15.at(-1).close, so we set it to 1.08.
  */
-function makeIntent(openedAt: number, sl = 1.079, tp = 1.082): OpenIntent {
+function makeIntent(
+  openedAt: number,
+  sl = 1.079,
+  tp = 1.082,
+  analysts?: OpenIntent["analysts"],
+): OpenIntent {
   const decision = {
     approve: true as const,
     lotSize: 0.05,
@@ -108,6 +113,7 @@ function makeIntent(openedAt: number, sl = 1.079, tp = 1.082): OpenIntent {
     decision,
     bundle,
     pipValuePerLot: 10,
+    ...(analysts ? { analysts } : {}),
   };
 }
 
@@ -245,5 +251,33 @@ describe("PaperExecutor", () => {
     expect(exec.cumulativeTrades.length).toBe(1);
     expect(exec.sessions.get(trade)).toBeDefined();
     expect(exec.regimes.get(trade)).toBeDefined();
+  });
+
+  it("analysts parity: analysts on the OpenIntent flow through onto the ClosedTrade", async () => {
+    const afterOpen = BASE_TS + 60_000;
+    const candles = [bar(afterOpen, 1.082, { high: 1.082, low: 1.081 })];
+
+    const broker = makeBroker(candles);
+    const exec = new PaperExecutor(broker);
+
+    const analysts = [
+      {
+        source: "technical" as const,
+        bias: "long" as const,
+        conviction: 0.8,
+        reasoning: "x",
+        evidence: [],
+      },
+    ];
+    const intent = makeIntent(BASE_TS, 1.079, 1.082, analysts);
+    await exec.open(intent);
+
+    const closed = await exec.reconcile(BASE_TS + 120_000);
+    expect(closed.length).toBe(1);
+    // Approved trades must carry analysts through to the journal (parity with
+    // the decisions stream — regression guard for the lost-fix incident).
+    expect(closed[0]?.analysts).toBeDefined();
+    expect(closed[0]?.analysts?.length).toBe(1);
+    expect(closed[0]?.analysts?.[0]?.source).toBe("technical");
   });
 });

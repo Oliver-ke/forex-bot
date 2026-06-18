@@ -7,7 +7,7 @@ import { AnthropicLlm, type LlmProvider, type StructuredRequest } from "@forex-b
 import { DynamoJournalStore } from "@forex-bot/memory";
 import type { GateContext } from "@forex-bot/risk";
 import {
-  LegacyPaperExecutor,
+  PaperExecutor,
   type RunnerDeps,
   type RunnerState,
   buildGateContext,
@@ -124,7 +124,7 @@ export interface PaperRunnerDeps {
   /** Full decision stream — every tick (approved + vetoed). */
   decisions: JournalStore;
   /** The executor that accumulates synthesized trades; exposes cumulativeTrades/sessions/regimes. */
-  executor: LegacyPaperExecutor;
+  executor: PaperExecutor;
   /** Skip ticks when the latest candle is older than this many ms (market closed). */
   marketStaleMs: number;
   log: Logger;
@@ -240,7 +240,7 @@ export async function main(): Promise<void> {
     ? new DynamoJournalStore({ tableName: cfg.decisionsTable, region: cfg.awsRegion })
     : new InMemoryJournalStore();
 
-  const executor = new LegacyPaperExecutor();
+  const executor = new PaperExecutor(broker);
 
   log.info("paper-runner started", {
     symbols: cfg.watchedSymbols,

@@ -12,7 +12,7 @@ import {
 import { InMemoryHotCache, InMemoryJournalStore } from "@forex-bot/data-core";
 import { FakeLlm, type LlmUsage, type StructuredRequest } from "@forex-bot/llm-provider";
 import { CorrelationMatrix, type GateContext, KillSwitch } from "@forex-bot/risk";
-import { LegacyPaperExecutor } from "@forex-bot/runner";
+import { PaperExecutor } from "@forex-bot/runner";
 import { Logger } from "@forex-bot/telemetry";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { BudgetTracker } from "../src/guards.js";
@@ -221,7 +221,7 @@ describe("paper-runner runIteration integration", () => {
 
     const journal = new InMemoryJournalStore();
     const decisions = new InMemoryJournalStore();
-    const executor = new LegacyPaperExecutor();
+    const executor = new PaperExecutor(broker);
 
     const deps: PaperRunnerDeps = {
       broker,
@@ -272,14 +272,12 @@ describe("paper-runner runIteration integration", () => {
 
     expect(state.decisions.ticks).toBe(3);
     expect(state.decisions.approved).toBeGreaterThanOrEqual(1);
-    expect(executor.cumulativeTrades.length).toBe(state.decisions.approved);
-    // Trade journal holds only approved trades.
+    // PaperExecutor closes on real post-open candles; the static pre-tick bars never trigger a
+    // close, so nothing has closed/journaled yet.
+    expect(executor.cumulativeTrades.length).toBe(0);
+    // Trade journal empty until a post-open candle triggers a close.
     const journaled = await journal.list({ limit: 100 });
-    expect(journaled.items.length).toBe(state.decisions.approved);
-    expect(journaled.items[0]?.verdict).toBeDefined();
-    expect(journaled.items[0]?.risk.approve).toBe(true);
-    // Approved trade journal entries must carry analysts (parity with pre-migration behavior).
-    expect(journaled.items[0]?.analysts).toBeDefined();
+    expect(journaled.items.length).toBe(0);
     // Decisions stream holds every decision (approved + vetoed).
     const allDecisions = await decisions.list({ limit: 100 });
     expect(allDecisions.items.length).toBe(state.decisions.approved + state.decisions.vetoed);
@@ -290,6 +288,67 @@ describe("paper-runner runIteration integration", () => {
     // FakeLlm should have been invoked at least once per tick (analysts +
     // consensus-judge + risk-officer ≈ 5 calls minimum on the consensus path).
     expect(llm.calls.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("approved trades close on a TP candle and journal a real outcome", async () => {
+    const startMs = Date.UTC(2026, 2, 15, 12, 0, 0);
+    const { deps, broker, journal, decisions, executor } = await buildHarness({ startMs });
+
+    // Retrieve the pre-open bars and add one post-open closing bar engineered to hit TP.
+    // The risk-officer returns sl=1.075, tp=1.0875.
+    // For a buy, simulateClose checks SL (bar.low <= sl) before TP (bar.high >= tp).
+    // Use an extreme high (entry + 0.05) and a low above SL (≈ entry) to guarantee
+    // the TP is hit without triggering SL first.
+    const symbol = "EURUSD" as const;
+    const existingBars = buildBars(startMs - 200 * HOUR_MS, 200, HOUR_MS);
+    // The closing bar is strictly after startMs so PaperExecutor's reconcile sees it.
+    const closingBarTs = startMs + HOUR_MS;
+    const closingBar: Candle = {
+      ts: closingBarTs,
+      open: 1.09,
+      // high well above any plausible TP (1.0875) so simulateClose returns "tp"
+      high: 1.09 + 0.05,
+      // low above SL (1.075) so SL is NOT triggered first
+      low: 1.09,
+      close: 1.09,
+      volume: 1,
+    };
+    broker.setCandles(symbol, "H1", [...existingBars, closingBar]);
+
+    // Seed state so the tick at startMs fires a schedule trigger.
+    const state = initialState(startMs - HOUR_MS);
+
+    // Single tick: opens the long and — in the same iteration's reconcile — sees
+    // the post-open closing bar and closes it immediately.
+    await runIteration(deps, state, startMs);
+
+    // The decision was approved (FakeLlm consensusLongRoute always approves).
+    expect(state.decisions.approved).toBeGreaterThanOrEqual(1);
+
+    // Trade should have closed via the TP-hitting closing candle.
+    expect(executor.cumulativeTrades.length).toBeGreaterThanOrEqual(1);
+
+    // Trade journal must contain the closed entry with a real outcome.
+    const journaled = await journal.list({ limit: 100 });
+    expect(journaled.items.length).toBeGreaterThanOrEqual(1);
+
+    // The journaled entry carries decision-stream fields AND a real outcome.
+    const entry = journaled.items[0];
+    expect(entry?.verdict).toBeDefined();
+    expect(entry?.risk.approve).toBe(true);
+    // Approved trade journal entries must carry analysts.
+    expect(entry?.analysts).toBeDefined();
+
+    // Real outcome fields — populated by run-iteration's reconcile journaling.
+    expect(entry?.outcome).toBeDefined();
+    expect(Number.isFinite(entry?.outcome?.pnl)).toBe(true);
+    expect(typeof entry?.outcome?.realizedR).toBe("number");
+    // The closing candle's high far exceeds TP and low stays above SL → exitReason is "tp".
+    expect(entry?.outcome?.exitReason).toBe("tp");
+
+    // Decisions stream still captures the decision regardless of close.
+    const allDecisions = await decisions.list({ limit: 100 });
+    expect(allDecisions.items.length).toBe(state.decisions.approved + state.decisions.vetoed);
   });
 
   it("skips the tick (no LLM/decision) when the feed is stale — market closed", async () => {

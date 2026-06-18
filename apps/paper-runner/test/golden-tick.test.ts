@@ -172,4 +172,15 @@ it("golden: consensus-long tick produces a stable decision shape", async () => {
   expect(typeof d?.risk.approve).toBe("boolean");
   // Record the exact approve value + counters as the baseline.
   expect({ approve: d?.risk.approve, ticks: state.decisions.ticks }).toMatchSnapshot();
+
+  // Strengthened regression assertions on the approved consensus-long decision.
+  expect(d?.symbol).toBe("EURUSD");
+
+  expect(d?.verdict.confidence).toBeGreaterThanOrEqual(0);
+  expect(d?.verdict.confidence).toBeLessThanOrEqual(1);
+
+  if (d?.risk.approve) {
+    // TypeScript narrows to the approve:true branch so sl/tp are available.
+    expect(d.risk.sl).toBeLessThan(d.risk.tp);
+  }
 });

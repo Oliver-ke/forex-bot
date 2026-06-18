@@ -11,6 +11,16 @@ function bar(ts: number, close: number, opts: { high?: number; low?: number } = 
   return { ts, open: close, high, low, close, volume: 1 };
 }
 
+// ≥15 H1 bars so ATR(14) (used to size the order) is defined.
+function h1History(t0: number, n = 20): Candle[] {
+  const out: Candle[] = [];
+  for (let i = n; i >= 1; i--) {
+    out.push(bar(t0 - i * 3600_000, 1.0795 + (i % 2 === 0 ? 0.0002 : 0)));
+  }
+  out.push(bar(t0, 1.08));
+  return out;
+}
+
 function buildMinimalFixture(): EventFixture {
   const t0 = 1_700_000_000_000;
   return {
@@ -22,7 +32,7 @@ function buildMinimalFixture(): EventFixture {
     bars: {
       symbol: "EURUSD",
       M15: [bar(t0 - 1800_000, 1.0795), bar(t0 - 900_000, 1.0798), bar(t0, 1.08)],
-      H1: [bar(t0 - 3600_000, 1.0795), bar(t0, 1.08)],
+      H1: h1History(t0),
       H4: [bar(t0 - 14400_000, 1.079), bar(t0, 1.08)],
       D1: [bar(t0 - 86400_000, 1.078), bar(t0, 1.08)],
     },

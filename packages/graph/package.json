@@ -12,6 +12,7 @@
   "dependencies": {
     "@forex-bot/agents": "workspace:*",
     "@forex-bot/contracts": "workspace:*",
+    "@forex-bot/indicators": "workspace:*",
     "@forex-bot/llm-provider": "workspace:*",
     "@forex-bot/risk": "workspace:*",
     "@langchain/langgraph": "^0.2.0"

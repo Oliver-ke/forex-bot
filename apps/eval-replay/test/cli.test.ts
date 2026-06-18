@@ -17,7 +17,12 @@ function bar(ts: number, close: number, opts: { high?: number; low?: number } = 
 }
 
 function buildBars(): readonly Candle[] {
+  // 15 warmup bars before the window so ATR(14) (the order's stop basis) is
+  // defined at the first tick; they predate every entry.
+  const warmup: Candle[] = [];
+  for (let i = 15; i >= 1; i--) warmup.push(bar(START_MS - i * HOUR_MS, 1.08));
   return [
+    ...warmup,
     bar(START_MS + 0 * HOUR_MS, 1.08),
     bar(START_MS + 1 * HOUR_MS, 1.0805),
     bar(START_MS + 2 * HOUR_MS, 1.081),

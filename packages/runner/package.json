@@ -1,5 +1,5 @@
 {
-  "name": "@forex-bot/memory",
+  "name": "@forex-bot/runner",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,14 +10,15 @@
     "build": "tsc -p tsconfig.json --outDir dist"
   },
   "dependencies": {
-    "@aws-sdk/client-dynamodb": "^3.690.0",
-    "@aws-sdk/lib-dynamodb": "^3.690.0",
+    "@forex-bot/agent-runner": "workspace:*",
+    "@forex-bot/broker-core": "workspace:*",
     "@forex-bot/contracts": "workspace:*",
     "@forex-bot/data-core": "workspace:*",
     "@forex-bot/eval-core": "workspace:*",
-    "pg": "^8.13.0"
-  },
-  "devDependencies": {
-    "@types/pg": "^8.11.10"
+    "@forex-bot/executor": "workspace:*",
+    "@forex-bot/indicators": "workspace:*",
+    "@forex-bot/llm-provider": "workspace:*",
+    "@forex-bot/risk": "workspace:*",
+    "@forex-bot/telemetry": "workspace:*"
   }
 }

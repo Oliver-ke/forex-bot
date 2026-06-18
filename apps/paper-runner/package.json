@@ -21,6 +21,7 @@
     "@forex-bot/llm-provider": "workspace:*",
     "@forex-bot/memory": "workspace:*",
     "@forex-bot/risk": "workspace:*",
+    "@forex-bot/runner": "workspace:*",
     "@forex-bot/telemetry": "workspace:*"
   }
 }

@@ -1,56 +1,28 @@
 import { appendFile, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { type Metrics, type Trade, computeMetrics } from "@forex-bot/eval-core";
+import {
+  type DailyMetricsSnapshot,
+  type DecisionCounters,
+  type RegimeBreakdown,
+  type RegimeKey,
+  type SessionBreakdown,
+  type SessionKey,
+  type Trade,
+  computeMetrics,
+  scoreAccuracy,
+} from "@forex-bot/eval-core";
 
-export interface DecisionCounters {
-  ticks: number;
-  approved: number;
-  vetoed: number;
-  consensus: number;
-  debated: number;
-  judgeOverrideOfDebate: number;
-  riskOfficerOverride: number;
-}
-
-export type SessionKey = "asia" | "london" | "ny" | "overlap_ny_london" | "off";
-export type RegimeKey = "trending" | "ranging" | "event-driven" | "risk-off";
-
-export interface SessionStats {
-  trades: number;
-  pnl: number;
-  winRate: number;
-}
-
-export interface RegimeStats {
-  trades: number;
-  pnl: number;
-}
-
-export interface SessionBreakdown {
-  asia: SessionStats;
-  london: SessionStats;
-  ny: SessionStats;
-  overlap_ny_london: SessionStats;
-  off: SessionStats;
-}
-
-export interface RegimeBreakdown {
-  trending: RegimeStats;
-  ranging: RegimeStats;
-  "event-driven": RegimeStats;
-  "risk-off": RegimeStats;
-}
-
-export interface DailyMetricsSnapshot {
-  /** ms epoch at start of UTC day. */
-  dayMs: number;
-  generatedAt: number;
-  metrics: Metrics;
-  decisions: DecisionCounters;
-  llmSpendUsd: number;
-  perSession: SessionBreakdown;
-  perRegime: RegimeBreakdown;
-}
+// Re-export relocated types so existing importers (e.g. main.ts) keep compiling unchanged.
+export type {
+  DecisionCounters,
+  SessionKey,
+  RegimeKey,
+  SessionStats,
+  RegimeStats,
+  SessionBreakdown,
+  RegimeBreakdown,
+  DailyMetricsSnapshot,
+} from "@forex-bot/eval-core";
 
 export interface MetricsWriterOpts {
   outDir: string;
@@ -80,12 +52,14 @@ export class MetricsWriter {
   /** Build the snapshot in memory. Trade-session and regime tagging are caller-provided. */
   buildSnapshot(input: BuildSnapshotInput): DailyMetricsSnapshot {
     const metrics = computeMetrics(input.cumulativeTrades);
+    const accuracy = scoreAccuracy(input.cumulativeTrades);
     const perSession = computePerSession(input.cumulativeTrades, input.sessions);
     const perRegime = computePerRegime(input.cumulativeTrades, input.regimes);
     return {
       dayMs: input.dayMs,
       generatedAt: this.nowFn(),
       metrics,
+      accuracy,
       decisions: input.decisions,
       llmSpendUsd: input.llmSpendUsd,
       perSession,

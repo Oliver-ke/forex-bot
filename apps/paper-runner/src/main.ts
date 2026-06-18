@@ -1,28 +1,22 @@
-import { detectTriggers, feedAgeMs, isMarketClosed, tick } from "@forex-bot/agent-runner";
 import type { Broker } from "@forex-bot/broker-core";
 import { MT5Broker, createMT5Client } from "@forex-bot/broker-mt5";
 import { RedisHotCache } from "@forex-bot/cache";
-import {
-  type RiskDecision,
-  type StateBundle,
-  type Symbol,
-  type TradeJournal,
-  defaultRiskConfig,
-} from "@forex-bot/contracts";
+import { type Symbol, defaultRiskConfig } from "@forex-bot/contracts";
 import { type HotCache, InMemoryJournalStore, type JournalStore } from "@forex-bot/data-core";
-import type { Trade } from "@forex-bot/eval-core";
+import type { MetricsStore } from "@forex-bot/eval-core";
 import { AnthropicLlm, type LlmProvider, type StructuredRequest } from "@forex-bot/llm-provider";
-import { DynamoJournalStore } from "@forex-bot/memory";
-import { CorrelationMatrix, type GateContext, KillSwitch } from "@forex-bot/risk";
-import { Logger } from "@forex-bot/telemetry";
+import { DynamoJournalStore, DynamoMetricsStore } from "@forex-bot/memory";
+import type { GateContext } from "@forex-bot/risk";
 import {
-  BudgetTracker,
-  type DecisionCounters,
-  MetricsWriter,
-  type RegimeKey,
-  type SessionKey,
-  assertDemoBroker,
-} from "./index.js";
+  PaperExecutor,
+  type RunnerDeps,
+  type RunnerState,
+  buildGateContext,
+  initialState as initialStateShared,
+  runIteration as runIterationShared,
+} from "@forex-bot/runner";
+import { Logger } from "@forex-bot/telemetry";
+import { BudgetTracker, type DecisionCounters, MetricsWriter, assertDemoBroker } from "./index.js";
 
 export interface PaperConfig {
   mt5Host: string;
@@ -38,6 +32,8 @@ export interface PaperConfig {
   journalTable: string;
   /** DynamoDB decisions table (every tick: approved + vetoed); empty → memory. */
   decisionsTable: string;
+  /** DynamoDB daily metrics snapshot table; empty → /tmp only. */
+  metricsTable: string;
   awsRegion: string;
   /** Skip ticks when the latest candle is older than this (market closed). */
   marketStaleSec: number;
@@ -77,6 +73,7 @@ export function readConfig(): PaperConfig {
     paperOutDir: process.env.PAPER_OUT_DIR ?? "./paper-out",
     journalTable: process.env.JOURNAL_TABLE ?? "",
     decisionsTable: process.env.DECISIONS_TABLE ?? "",
+    metricsTable: process.env.METRICS_TABLE ?? "",
     awsRegion: process.env.AWS_REGION ?? "eu-west-2",
     marketStaleSec: Number(process.env.MARKET_STALE_SEC ?? 10_800),
   };
@@ -104,42 +101,6 @@ class BudgetWrappedLlm implements LlmProvider {
   }
 }
 
-function buildGateContextDefault(
-  now: number,
-  account: GateContext["account"],
-  symbol: Symbol,
-): GateContext {
-  return {
-    now,
-    order: {
-      symbol,
-      side: "buy",
-      lotSize: 0.1,
-      entry: 1.08,
-      sl: 1.075,
-      tp: 1.0875,
-      expiresAt: now + 5 * 60_000,
-    },
-    account,
-    openPositions: [],
-    config: defaultRiskConfig,
-    currentSpreadPips: 1.0,
-    medianSpreadPips: 1.0,
-    atrPips: 30,
-    session: "london",
-    upcomingEvents: [],
-    correlation: new CorrelationMatrix({}),
-    killSwitch: new KillSwitch(),
-    consecutiveLosses: 0,
-    dailyPnlPct: 0,
-    totalDdPct: 0,
-    feedAgeSec: 1,
-    currencyExposurePct: {},
-    affectedCurrencies: (s) => [s.slice(0, 3), s.slice(3)],
-    pipValuePerLot: () => 10,
-  };
-}
-
 export function utcDayMs(ms: number): number {
   const d = new Date(ms);
   return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
@@ -157,41 +118,6 @@ export function emptyDecisionCounters(): DecisionCounters {
   };
 }
 
-/**
- * Synthesize a Trade record from a tick result. Paper-runner v1 does not yet
- * track real position lifecycle; the close price is the bundle's mid quote and
- * pnl is left at zero. Replaced with a real ledger when v2 lands.
- */
-export function synthesizeTrade(
-  ts: number,
-  bundle: StateBundle,
-  decision: Extract<RiskDecision, { approve: true }>,
-): Trade {
-  const lastClose = bundle.market.H1.at(-1)?.close ?? (decision.sl + decision.tp) / 2;
-  const mid = lastClose;
-  return {
-    symbol: bundle.symbol,
-    openedAt: ts,
-    closedAt: ts,
-    side: "buy",
-    entry: mid,
-    sl: decision.sl,
-    tp: decision.tp,
-    exit: mid,
-    lotSize: decision.lotSize,
-    pnl: 0,
-    realizedR: 0,
-    exitReason: "manual",
-    verdict: {
-      direction: "neutral",
-      confidence: 0.5,
-      horizon: "H1",
-      reasoning: "paper-runner placeholder verdict",
-    },
-    decision,
-  };
-}
-
 export interface PaperRunnerDeps {
   broker: Broker;
   cache: HotCache;
@@ -201,129 +127,68 @@ export interface PaperRunnerDeps {
   journal: JournalStore;
   /** Full decision stream — every tick (approved + vetoed). */
   decisions: JournalStore;
+  /** The executor that accumulates synthesized trades; exposes cumulativeTrades/sessions/regimes. */
+  executor: PaperExecutor;
+  /** Optional durable sink for daily snapshots (DynamoDB). /tmp writer always fires too. */
+  metricsStore?: MetricsStore;
   /** Skip ticks when the latest candle is older than this many ms (market closed). */
   marketStaleMs: number;
   log: Logger;
   watchedSymbols: readonly Symbol[];
   consensusThreshold: number;
   /** Build GateContext per tick. */
-  buildGateContext: (now: number, account: GateContext["account"], symbol: Symbol) => GateContext;
+  buildGateContext: (input: {
+    now: number;
+    symbol: Symbol;
+    account: GateContext["account"];
+    bundle: import("@forex-bot/contracts").StateBundle;
+  }) => GateContext;
 }
 
-export interface RunIterationsState {
-  lastTickedMs: number;
-  lastRebalanceMs: number;
+export interface RunIterationsState extends RunnerState {
   lastFlushDayMs: number;
-  cumulativeTrades: Trade[];
-  sessions: Map<Trade, SessionKey>;
-  regimes: Map<Trade, RegimeKey>;
-  decisions: DecisionCounters;
 }
 
 /** Build the initial state for the poll loop, anchored at `nowMs`. */
 export function initialState(nowMs: number): RunIterationsState {
   return {
-    lastTickedMs: nowMs,
-    lastRebalanceMs: nowMs,
+    ...initialStateShared(nowMs),
     lastFlushDayMs: utcDayMs(nowMs),
-    cumulativeTrades: [],
-    sessions: new Map(),
-    regimes: new Map(),
-    decisions: emptyDecisionCounters(),
   };
 }
 
 /**
- * Runs one iteration of the paper-runner poll loop. Mutates `state` in place
- * and returns it for convenient chaining. Does NOT sleep — caller controls
- * pacing. Daily flush fires when `nowMs` crosses a UTC day boundary.
+ * Runs one iteration of the paper-runner poll loop. Delegates to the shared
+ * harness `runIteration` then fires a daily metrics flush when `nowMs` crosses
+ * a UTC day boundary. Mutates `state` in place and returns it for chaining.
  */
 export async function runIteration(
   deps: PaperRunnerDeps,
   state: RunIterationsState,
   nowMs: number,
 ): Promise<RunIterationsState> {
-  if (deps.budget.tripped) {
-    deps.log.warn("budget tripped, skipping tick", { spendUsd: deps.budget.spendUsd });
-  } else {
-    for (const symbol of deps.watchedSymbols) {
-      try {
-        const candlesH1 = await deps.broker.getCandles(symbol, "H1", 200);
-        if (isMarketClosed(candlesH1, nowMs, deps.marketStaleMs)) {
-          deps.log.info("market closed / feed stale — skipping tick", {
-            symbol,
-            feedAgeSec: Math.round(feedAgeMs(candlesH1, nowMs) / 1000),
-          });
-          continue;
-        }
-        const calendar = await deps.cache.getCalendarWindow();
-        const triggers = detectTriggers({
-          nowMs,
-          lastTickedMs: state.lastTickedMs,
-          candlesByTf: { H1: candlesH1 },
-          upcomingEvents: calendar,
-          lastRebalanceMs: state.lastRebalanceMs,
-        });
-        if (triggers.length === 0) continue;
+  // Build RunnerDeps for the shared harness.
+  const runnerDeps: RunnerDeps = {
+    broker: deps.broker,
+    cache: deps.cache,
+    llm: deps.llm,
+    executor: deps.executor,
+    journal: deps.journal,
+    decisions: deps.decisions,
+    budget: deps.budget,
+    buildGateContext: (input) => deps.buildGateContext(input),
+    log: {
+      info: (m, f) => deps.log.info(m, f as Record<string, unknown>),
+      warn: (m, f) => deps.log.warn(m, f as Record<string, unknown>),
+      error: (m, f) => deps.log.error(m, f as Record<string, unknown>),
+    },
+    watchedSymbols: deps.watchedSymbols,
+    consensusThreshold: deps.consensusThreshold,
+    marketStaleMs: deps.marketStaleMs,
+  };
 
-        const account = await deps.broker.getAccount();
-        const trigger = triggers[0];
-        if (!trigger) continue;
-        const result = await tick({
-          broker: deps.broker,
-          cache: deps.cache,
-          llm: deps.llm,
-          symbol,
-          ts: nowMs,
-          trigger,
-          consensusThreshold: deps.consensusThreshold,
-          buildGateContext: () => deps.buildGateContext(nowMs, account, symbol),
-        });
-        state.decisions.ticks += 1;
-        const approved = result.decision.approve;
-        if (approved) {
-          state.decisions.approved += 1;
-          const trade = synthesizeTrade(nowMs, result.bundle, result.decision);
-          state.cumulativeTrades.push(trade);
-          state.sessions.set(trade, "london");
-          state.regimes.set(trade, result.bundle.regimePrior.label);
-        } else {
-          state.decisions.vetoed += 1;
-        }
-        // Durable records: every decision → decisions stream; approved → trade
-        // journal. Both reuse the TradeJournal shape (risk captures the veto).
-        if (result.verdict) {
-          const entry: TradeJournal = {
-            tradeId: `${symbol}-${nowMs}`,
-            symbol,
-            openedAt: nowMs,
-            ...(result.analysts ? { analysts: [...result.analysts] } : {}),
-            verdict: result.verdict,
-            risk: result.decision,
-          };
-          try {
-            await deps.decisions.put(entry);
-            if (approved) await deps.journal.put(entry);
-          } catch (e) {
-            const msg = e instanceof Error ? e.message : String(e);
-            deps.log.error("decision/journal write failed", { tradeId: entry.tradeId, err: msg });
-          }
-        } else {
-          deps.log.warn("decision has no verdict; skipping record", { symbol });
-        }
-        deps.log.info("tick complete", {
-          symbol,
-          trigger: trigger.reason,
-          approved: result.decision.approve,
-        });
-        if (triggers.some((t) => t.reason === "rebalance")) state.lastRebalanceMs = nowMs;
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        deps.log.error("tick failed", { symbol, err: msg });
-      }
-    }
-    state.lastTickedMs = nowMs;
-  }
+  // Delegate to the shared harness (mutates the RunnerState portion of state).
+  await runIterationShared(runnerDeps, state, nowMs);
 
   // Daily flush at UTC midnight boundary.
   const todayMs = utcDayMs(nowMs);
@@ -331,16 +196,23 @@ export async function runIteration(
     try {
       const snapshot = deps.writer.buildSnapshot({
         dayMs: state.lastFlushDayMs,
-        cumulativeTrades: state.cumulativeTrades,
-        sessions: state.sessions,
-        regimes: state.regimes,
+        cumulativeTrades: deps.executor.cumulativeTrades,
+        sessions: deps.executor.sessions,
+        regimes: deps.executor.regimes,
         decisions: state.decisions,
         llmSpendUsd: deps.budget.spendUsd,
       });
       await deps.writer.flush(snapshot);
+      if (deps.metricsStore) {
+        try {
+          await deps.metricsStore.put(snapshot);
+        } catch (e) {
+          deps.log.error("metrics sink put failed", { err: String(e) });
+        }
+      }
       deps.log.info("daily metrics flushed", {
         dayMs: state.lastFlushDayMs,
-        trades: state.cumulativeTrades.length,
+        trades: deps.executor.cumulativeTrades.length,
         spendUsd: deps.budget.spendUsd,
       });
     } catch (e) {
@@ -380,6 +252,11 @@ export async function main(): Promise<void> {
   const decisions: JournalStore = cfg.decisionsTable
     ? new DynamoJournalStore({ tableName: cfg.decisionsTable, region: cfg.awsRegion })
     : new InMemoryJournalStore();
+  const metricsStore = cfg.metricsTable
+    ? new DynamoMetricsStore({ tableName: cfg.metricsTable, region: cfg.awsRegion })
+    : undefined;
+
+  const executor = new PaperExecutor(broker);
 
   log.info("paper-runner started", {
     symbols: cfg.watchedSymbols,
@@ -396,11 +273,13 @@ export async function main(): Promise<void> {
     writer,
     journal,
     decisions,
+    executor,
+    ...(metricsStore !== undefined ? { metricsStore } : {}),
     marketStaleMs: cfg.marketStaleSec * 1000,
     log,
     watchedSymbols: cfg.watchedSymbols,
     consensusThreshold: defaultRiskConfig.agent.consensusThreshold,
-    buildGateContext: buildGateContextDefault,
+    buildGateContext,
   };
 
   const state = initialState(Date.now());

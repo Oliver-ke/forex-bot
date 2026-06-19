@@ -8,12 +8,15 @@ type Cb<T> = (err: null, res: T) => void;
 /** Minimal stub MT5Client that records outbound requests and returns canned data. */
 function stubClient(captured: Record<string, unknown>): MT5Client {
   return {
-    getQuote: (req: { symbol: string }, cb: Cb<unknown>) => {
+    // Signature matches the grpc-js unary overload the adapter now uses:
+    // (request, metadata, options, callback). The adapter passes a per-call
+    // deadline via `options`; the stub ignores meta/opts.
+    getQuote: (req: { symbol: string }, _meta: unknown, _opts: unknown, cb: Cb<unknown>) => {
       captured.quote = req;
       // Broker echoes the (suffixed) symbol back, as MetaApi would.
       cb(null, { ts: 1n, symbol: req.symbol, bid: 1.1, ask: 1.2 });
     },
-    getCandles: (req: { symbol: string }, cb: Cb<unknown>) => {
+    getCandles: (req: { symbol: string }, _meta: unknown, _opts: unknown, cb: Cb<unknown>) => {
       captured.candles = req;
       cb(null, { candles: [] });
     },

@@ -9,7 +9,7 @@ import {
   type PlaceOrderResult,
 } from "@forex-bot/broker-core";
 import type { AccountState, Candle, Position, Symbol, Tick, Timeframe } from "@forex-bot/contracts";
-import { status as GrpcStatus, type ServiceError } from "@grpc/grpc-js";
+import { type CallOptions, Metadata, status as GrpcStatus, type ServiceError } from "@grpc/grpc-js";
 import {
   type CandlesResponse,
   type MT5Client,
@@ -34,12 +34,28 @@ function lift(err: ServiceError): Error {
   }
 }
 
-type UnaryCall<Req, Res> = (req: Req, cb: (err: ServiceError | null, res: Res) => void) => unknown;
+/**
+ * Per-call gRPC deadline. The sidecar's MetaApi subscription can intermittently
+ * stall; without a deadline a unary call blocks forever and hangs the runner's
+ * tick loop (it goes silent and stops ticking). With a deadline a stalled call
+ * fails as DEADLINE_EXCEEDED → lift() → BrokerTransportError → the tick is
+ * logged as failed and the loop proceeds to the next poll, recovering on its
+ * own once the sidecar is healthy again. A healthy sidecar answers in well
+ * under a second, so this is pure headroom.
+ */
+const CALL_DEADLINE_MS = 10_000;
+
+type UnaryCall<Req, Res> = (
+  req: Req,
+  metadata: Metadata,
+  options: Partial<CallOptions>,
+  cb: (err: ServiceError | null, res: Res) => void,
+) => unknown;
 
 function unary<Req, Res>(fn: UnaryCall<Req, Res>): (req: Req) => Promise<Res> {
   return (req) =>
     new Promise<Res>((resolve, reject) => {
-      fn(req, (err, res) => {
+      fn(req, new Metadata(), { deadline: Date.now() + CALL_DEADLINE_MS }, (err, res) => {
         if (err) reject(lift(err));
         else resolve(res);
       });
@@ -73,8 +89,8 @@ export class MT5Broker implements Broker {
   }
 
   async getQuote(symbol: Symbol): Promise<Tick> {
-    const t: ProtoTick = await unary<{ symbol: string }, ProtoTick>((req, cb) =>
-      this.client.getQuote(req, cb),
+    const t: ProtoTick = await unary<{ symbol: string }, ProtoTick>((req, meta, opts, cb) =>
+      this.client.getQuote(req, meta, opts, cb),
     )({ symbol: this.toBroker(symbol) });
     return { ts: Number(t.ts), symbol: this.fromBroker(t.symbol), bid: t.bid, ask: t.ask };
   }
@@ -87,7 +103,7 @@ export class MT5Broker implements Broker {
     const r: CandlesResponse = await unary<
       { symbol: string; timeframe: number; limit: number },
       CandlesResponse
-    >((req, cb) => this.client.getCandles(req, cb))({
+    >((req, meta, opts, cb) => this.client.getCandles(req, meta, opts, cb))({
       symbol: this.toBroker(symbol),
       timeframe: tfToProto(timeframe),
       limit,
@@ -103,8 +119,8 @@ export class MT5Broker implements Broker {
   }
 
   async getAccount(): Promise<AccountState> {
-    const a: ProtoAccountState = await unary<Record<string, never>, ProtoAccountState>((req, cb) =>
-      this.client.getAccount(req, cb),
+    const a: ProtoAccountState = await unary<Record<string, never>, ProtoAccountState>(
+      (req, meta, opts, cb) => this.client.getAccount(req, meta, opts, cb),
     )({});
     return {
       ts: Number(a.ts),
@@ -119,7 +135,7 @@ export class MT5Broker implements Broker {
 
   async getOpenPositions(): Promise<readonly Position[]> {
     const r: OpenPositionsResponse = await unary<Record<string, never>, OpenPositionsResponse>(
-      (req, cb) => this.client.getOpenPositions(req, cb),
+      (req, meta, opts, cb) => this.client.getOpenPositions(req, meta, opts, cb),
     )({});
     return r.positions.map((p) => ({
       id: p.id,
@@ -137,8 +153,8 @@ export class MT5Broker implements Broker {
     if (req.type !== "market") {
       throw new BrokerRejectedError("MT5Broker only supports market orders in v1");
     }
-    const r: PlaceOrderResponse = await unary<unknown, PlaceOrderResponse>((rq, cb) =>
-      this.client.placeOrder(rq as never, cb),
+    const r: PlaceOrderResponse = await unary<unknown, PlaceOrderResponse>((rq, meta, opts, cb) =>
+      this.client.placeOrder(rq as never, meta, opts, cb),
     )({
       symbol: this.toBroker(req.symbol),
       side: sideToProto(req.side),
@@ -159,7 +175,9 @@ export class MT5Broker implements Broker {
   }
 
   async modifyOrder(req: ModifyOrderRequest): Promise<void> {
-    await unary<unknown, unknown>((rq, cb) => this.client.modifyOrder(rq as never, cb))({
+    await unary<unknown, unknown>((rq, meta, opts, cb) =>
+      this.client.modifyOrder(rq as never, meta, opts, cb),
+    )({
       ticket: req.ticket,
       ...(req.sl !== undefined ? { sl: req.sl } : {}),
       ...(req.tp !== undefined ? { tp: req.tp } : {}),
@@ -168,7 +186,7 @@ export class MT5Broker implements Broker {
 
   async closePosition(ticket: string): Promise<ClosePositionResult> {
     const r = await unary<{ ticket: string }, { fillPrice: number; pnl: number; closedAt: number }>(
-      (rq, cb) => this.client.closePosition(rq, cb),
+      (rq, meta, opts, cb) => this.client.closePosition(rq, meta, opts, cb),
     )({ ticket });
     return { fillPrice: r.fillPrice, pnl: r.pnl, closedAt: Number(r.closedAt) };
   }
